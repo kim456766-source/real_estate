@@ -1,0 +1,8 @@
+{# Floating "Agent replies" button: opens the "My conversations" page (each conversation opens with its code) #}
+{% if request.resolver_match.view_name != "inquiries:conversations" %}
+<a href="{% url 'inquiries:conversations' %}" class="messages-float" aria-label="Agent replies: your conversations with agents"
+   title="Your conversations with agents">
+  <i class="fa-regular fa-comments"></i><span class="messages-label">Agent replies</span>
+  {% if agent_unread %}<span class="messages-badge">{{ agent_unread }}</span>{% endif %}
+</a>
+{% endif %}

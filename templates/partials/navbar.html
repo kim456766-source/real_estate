@@ -1,0 +1,69 @@
+{% load static %}{% with url_name=request.resolver_match.url_name ns=request.resolver_match.namespace %}
+<nav class="navbar navbar-expand-xl tp-navbar sticky-top py-3">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'pages:home' %}" aria-label="Theo Property home">
+      <img src="{% static 'img/logo.png' %}" alt="" class="brand-logo" width="78" height="40">
+      <span class="brand-text">Theo<span class="text-green">Property</span></span>
+    </a>
+    <button type="button" class="search-toggle ms-auto me-2 order-xl-last ms-xl-2 me-xl-0" aria-controls="siteSearch"
+            aria-expanded="false" aria-label="Search properties" title="Search properties">
+      <i class="fa-solid fa-magnifying-glass"></i></button>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-label="Menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav mx-auto gap-xl-1">
+        <li class="nav-item"><a class="nav-link {% if url_name == 'home' %}active{% endif %}" href="{% url 'pages:home' %}">Home</a></li>
+        <li class="nav-item"><a class="nav-link nav-hot {% if url_name == 'deals' %}active{% endif %}" href="{% url 'properties:deals' %}"><i class="fa-solid fa-fire me-1"></i>Hot deals</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'buy' %}active{% endif %}" href="{% url 'properties:buy' %}">Buy</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'rent' %}active{% endif %}" href="{% url 'properties:rent' %}">Rent</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'land' %}active{% endif %}" href="{% url 'properties:land' %}">Plots &amp; Land</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'commercial' %}active{% endif %}" href="{% url 'properties:commercial' %}">Commercial</a></li>
+        <li class="nav-item"><a class="nav-link {% if ns == 'blog' %}active{% endif %}" href="{% url 'blog:list' %}">Blog</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'about' %}active{% endif %}" href="{% url 'pages:about' %}">About</a></li>
+        <li class="nav-item"><a class="nav-link {% if url_name == 'contact' %}active{% endif %}" href="{% url 'pages:contact' %}">Contact</a></li>
+      </ul>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'favorites:list' %}" class="btn btn-link text-dark position-relative" title="Saved properties">
+          <i class="fa-regular fa-heart"></i>
+          {% if fav_ids %}<span class="badge rounded-pill bg-danger notif-badge">{{ fav_ids|length }}</span>{% endif %}
+        </a>
+        {% if user.is_authenticated and user.uses_dashboard %}
+          <a href="{% url 'accounts:after_login' %}" class="btn btn-outline-primary btn-staff"><i class="fa-regular fa-user me-1"></i>My account</a>
+        {% else %}
+          <a href="{% url 'accounts:login' %}" class="btn btn-outline-primary btn-staff"
+             {% if request.resolver_match.view_name != "accounts:login" %}data-bs-toggle="modal" data-bs-target="#signInModal"{% endif %}><i class="fa-solid fa-right-to-bracket me-1"></i>Sign In</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</nav>
+{% if ns != 'properties' or url_name != 'submit' and url_name != 'submit_done' and url_name != 'status' %}
+<div class="owner-bar">
+  <div class="container d-flex flex-wrap align-items-center justify-content-center justify-content-md-between gap-2">
+    <span class="owner-bar-text"><i class="fa-solid fa-key me-2"></i><strong>Property owner?</strong> Sell or rent your house, apartment, plot, land or commercial property with us. No account needed.</span>
+    <a href="{% url 'properties:submit' %}" class="btn btn-owner-cta"><i class="fa-solid fa-paper-plane me-1"></i>Submit your property</a>
+  </div>
+</div>
+{% endif %}
+{# Search panel: opens (centred, under the owner bar) when the search button is clicked. Open on results pages. #}
+{% with open=request.GET.q %}
+<div class="search-panel-wrap{% if open and ns == 'properties' %} open{% endif %}" id="siteSearch" {% if not open or ns != 'properties' %}hidden{% endif %}>
+  <div class="container">
+    <form class="live-search" action="{% url 'properties:list' %}" method="get" role="search"
+          data-suggest-url="{% url 'properties:suggest' %}" data-list-url="{% url 'properties:list' %}" autocomplete="off">
+      <div class="live-search-box">
+        <i class="fa-solid fa-magnifying-glass live-search-icon" aria-hidden="true"></i>
+        <input type="search" name="q" value="{% if ns == 'properties' %}{{ request.GET.q }}{% endif %}" maxlength="80"
+               placeholder="Search houses, apartments, plots, places… e.g. house Kimironko"
+               aria-label="Search properties" role="combobox" aria-autocomplete="list" aria-expanded="false"
+               aria-controls="liveSearchList" enterkeyhint="search" spellcheck="false">
+        <button type="button" class="live-search-clear" aria-label="Clear search" hidden><i class="fa-solid fa-xmark"></i></button>
+        <button type="submit" class="live-search-go" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+      </div>
+      <div class="live-search-list" id="liveSearchList" role="listbox" hidden></div>
+    </form>
+  </div>
+</div>
+{% endwith %}
+{% endwith %}

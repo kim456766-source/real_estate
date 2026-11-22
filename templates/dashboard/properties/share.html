@@ -1,0 +1,58 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% url 'dashboard:properties' %}{% endblock %}
+{% block page_title %}Share kit · {{ property.reference }}{% endblock %}
+{% block content %}
+{% if not property.is_public %}
+<div class="alert alert-warning small"><i class="fa-solid fa-triangle-exclamation me-1"></i>This listing is <strong>{{ property.get_approval_status_display }}</strong>.
+  The website link only works for clients once it's published. You can still prepare and post the ad text and photos.</div>
+{% endif %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="dash-card">
+      <div class="card-head"><h6>Ready-to-post ad</h6>
+        <button class="btn btn-sm btn-primary" type="button" data-copy="#adText"><i class="fa-regular fa-copy me-1"></i><span>Copy text</span></button></div>
+      <div class="card-body-tp">
+        <textarea id="adText" class="form-control" rows="16">{{ ad_text }}</textarea>
+        <div class="form-text">Edit the text if you like, then copy it into Facebook, Instagram, WhatsApp status, Jiji, LinkedIn or any other platform.</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5 d-grid gap-3 align-content-start">
+    <div class="dash-card"><div class="card-head"><h6>Share directly</h6></div><div class="card-body-tp d-grid gap-2">
+      <a class="btn btn-success" target="_blank" rel="noopener" id="shareWhatsapp" href="https://wa.me/?text={{ ad_text|urlencode }}"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>
+      <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u={{ url|urlencode }}"><i class="fa-brands fa-facebook me-1"></i>Facebook</a>
+      <a class="btn btn-outline-dark" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text={{ short_text|urlencode }}&url={{ url|urlencode }}"><i class="fa-brands fa-x-twitter me-1"></i>X (Twitter)</a>
+      <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="https://www.linkedin.com/sharing/share-offsite/?url={{ url|urlencode }}"><i class="fa-brands fa-linkedin me-1"></i>LinkedIn</a>
+      <a class="btn btn-outline-secondary" target="_blank" rel="noopener" href="https://t.me/share/url?url={{ url|urlencode }}&text={{ short_text|urlencode }}"><i class="fa-brands fa-telegram me-1"></i>Telegram</a>
+      <div class="input-group mt-2">
+        <input class="form-control" id="listingUrl" value="{{ url }}" readonly>
+        <button class="btn btn-light" type="button" data-copy="#listingUrl"><i class="fa-regular fa-copy"></i><span class="visually-hidden">Copy link</span></button>
+      </div>
+    </div></div>
+    <div class="dash-card"><div class="card-head"><h6>Photos ({{ property.images.count }})</h6>
+      {% if property.images.exists %}<a href="{% url 'dashboard:property_photos' property.pk %}" class="btn btn-sm btn-primary"><i class="fa-solid fa-download me-1"></i>Download all (ZIP)</a>{% endif %}</div>
+      <div class="card-body-tp"><div class="row g-2">
+        {% for img in property.images.all %}
+          <div class="col-4"><a href="{{ img.image.url }}" download><span class="media-frame d-block"><img src="{{ img.image.url }}" alt=""></span></a></div>
+        {% empty %}<p class="small text-muted mb-0">No photos yet. Add some on the edit page.</p>{% endfor %}
+      </div></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  document.querySelectorAll("[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      const el = document.querySelector(btn.dataset.copy);
+      try { await navigator.clipboard.writeText(el.value); } catch (e) { el.select(); document.execCommand("copy"); }
+      const label = btn.querySelector("span");
+      if (label) { const old = label.textContent; label.textContent = "Copied!"; setTimeout(() => label.textContent = old, 1500); }
+    });
+  });
+  // keep the WhatsApp link in sync with edits to the ad text
+  document.getElementById("adText").addEventListener("input", function () {
+    document.getElementById("shareWhatsapp").href = "https://wa.me/?text=" + encodeURIComponent(this.value);
+  });
+</script>
+{% endblock %}

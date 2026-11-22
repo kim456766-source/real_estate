@@ -1,0 +1,56 @@
+{% extends "accounts/_auth_layout.html" %}
+{% block title %}Register as an agent | {{ site.site_name }}{% endblock %}
+{% block width %}8{% endblock %}
+{% block auth_content %}
+<div class="eyebrow">For real estate agents</div>
+<h2 class="mb-1">Apply to become an agent</h2>
+<p class="text-muted mb-4">Fill in your details. The administrator reviews every application; you can log in once you're approved.</p>
+
+<ol class="apply-steps mb-4">
+  <li><span>1</span>Send your application</li>
+  <li><span>2</span>Administrator reviews it</li>
+  <li><span>3</span>Log in and start advertising</li>
+</ol>
+
+{% if google_login_enabled %}
+<div class="mb-4">
+  {% include "accounts/_google_button.html" with label="Sign up with Google" next="" %}
+  <div class="small text-muted text-center mt-2">Fills in your name and email from your Google account. You still choose a username and password below.</div>
+  <div class="login-or"><span>or fill in the form</span></div>
+</div>
+{% endif %}
+
+<form method="post" novalidate>{% csrf_token %}
+  {% if form.errors %}<div class="alert alert-danger">Please fix the fields marked in red.</div>{% endif %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div style="position:absolute;left:-9999px" aria-hidden="true">{{ form.website }}</div>
+
+  <h6 class="form-section-title">Your details</h6>
+  <div class="row g-3 mb-4">
+    {% include "dashboard/properties/_field.html" with field=form.first_name %}
+    {% include "dashboard/properties/_field.html" with field=form.last_name %}
+    {% include "dashboard/properties/_field.html" with field=form.phone %}
+    {% include "dashboard/properties/_field.html" with field=form.email %}
+  </div>
+
+  <h6 class="form-section-title">Your work</h6>
+  <div class="row g-3 mb-4">
+    {% include "dashboard/properties/_field.html" with field=form.agency_name %}
+    {% include "dashboard/properties/_field.html" with field=form.license_number %}
+    {% include "dashboard/properties/_field.html" with field=form.years_experience col="col-md-4" %}
+    {% include "dashboard/properties/_field.html" with field=form.application_note col="col-12" %}
+  </div>
+
+  <h6 class="form-section-title">Login details</h6>
+  <div class="row g-3 mb-3">
+    {% include "dashboard/properties/_field.html" with field=form.username col="col-12" %}
+    {% include "dashboard/properties/_field.html" with field=form.password1 %}
+    {% include "dashboard/properties/_field.html" with field=form.password2 %}
+  </div>
+
+  {% include "dashboard/properties/_field.html" with field=form.agree col="" %}
+  <button class="btn btn-primary btn-lg w-100 mt-3"><i class="fa-regular fa-paper-plane me-1"></i>Send application</button>
+</form>
+<p class="text-center small text-muted mt-3 mb-0">Already approved? <a href="{% url 'accounts:login' %}">Log in</a></p>
+<p class="text-center small fw-bold text-muted mt-4 mb-0" style="letter-spacing:.06em">DEVELOPED BY Elyse!!</p>
+{% endblock %}

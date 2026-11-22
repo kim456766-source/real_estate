@@ -1,0 +1,10 @@
+<div class="{{ col|default:'col-md-6' }}"{% if show_for %} data-show-for="{{ show_for }}"{% endif %}{% if show_purpose %} data-show-purpose="{{ show_purpose }}"{% endif %}>
+  {% if field.field.widget.input_type == 'checkbox' %}
+    <div class="form-check form-switch mt-md-4">{{ field }} <label class="form-check-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+  {% else %}
+    <label class="form-label tp-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required or required %} <span class="req" aria-hidden="true">*</span>{% else %} <span class="opt">optional</span>{% endif %}</label>
+    {{ field }}
+  {% endif %}
+  {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+  {% for error in field.errors %}<div class="invalid-msg"><i class="fa-solid fa-circle-exclamation me-1"></i>{{ error }}</div>{% endfor %}
+</div>

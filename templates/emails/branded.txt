@@ -1,0 +1,25 @@
+{% autoescape off %}{{ site_name|upper }}{% if category %} · {{ category }}{% endif %}
+==================================================
+
+{{ heading }}
+
+{% if greeting_name %}Hello {{ greeting_name }},
+
+{% endif %}{% if intro %}{{ intro }}
+
+{% endif %}{% if body %}{{ body }}
+
+{% endif %}{% if quote %}{% if quote_label %}{{ quote_label }}:
+{% endif %}"{{ quote }}"
+
+{% endif %}{% if details %}{% for label, value in details %}- {{ label }}: {{ value }}
+{% endfor %}
+{% endif %}{% if button_url %}{{ button_label|default:"Open" }}: {{ button_url }}
+
+{% endif %}{% if note %}{{ note }}
+
+{% endif %}--
+{% if reason %}{{ reason }}
+{% endif %}{{ site_name }}{% if support_phone %} · Call or WhatsApp {{ support_phone }}{% endif %}
+DEVELOPED BY Elyse!!
+{% endautoescape %}

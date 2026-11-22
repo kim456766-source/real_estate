@@ -1,0 +1,14 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Contact messages{% endblock %}
+{% block content %}
+<div class="d-grid gap-3">
+  {% for m in page_obj %}
+  <div class="dash-card"><div class="card-head">
+    <div><h6>{{ m.subject }}</h6><div class="small text-muted">{{ m.name }} · <a href="mailto:{{ m.email }}">{{ m.email }}</a> · {{ m.created_at|date:"d M Y H:i" }}</div></div>
+    {% if m.is_handled %}<span class="status-pill st-approved">Handled</span>{% else %}
+      <form method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ m.pk }}"><button class="btn btn-sm btn-outline-primary">Mark handled</button></form>{% endif %}
+  </div><div class="card-body-tp small" style="white-space: pre-line">{{ m.message }}</div></div>
+  {% empty %}<p class="text-muted">No messages.</p>{% endfor %}
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}About us | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container">
+  <div class="eyebrow">About us</div>
+  <h1>Connecting Rwanda to the right property</h1>
+</div></div>
+<section class="section">
+  <div class="container">
+    <div class="row g-5 align-items-center">
+      <div class="col-lg-6">
+        <h2 class="section-title mb-3">Who we are</h2>
+        <p class="text-muted" style="white-space: pre-line">{{ site.about }}</p>
+        <p class="text-muted">We bring property owners, professional agents and clients together on one platform, with verified listings, online viewing requests and transparent communication.</p>
+      </div>
+      <div class="col-lg-6">
+        <div class="row g-3">
+          <div class="col-6"><div class="side-card h-100"><i class="fa-solid fa-bullseye fa-2x text-green mb-2"></i><h5>Mission</h5><p class="small text-muted mb-0">Make finding, renting and selling property in Rwanda simple, safe and fair.</p></div></div>
+          <div class="col-6"><div class="side-card h-100"><i class="fa-solid fa-eye fa-2x text-green mb-2"></i><h5>Vision</h5><p class="small text-muted mb-0">Become East Africa's most trusted real estate marketplace.</p></div></div>
+          <div class="col-6"><div class="side-card h-100"><i class="fa-solid fa-scale-balanced fa-2x text-green mb-2"></i><h5>Integrity</h5><p class="small text-muted mb-0">Every listing is reviewed before it is published.</p></div></div>
+          <div class="col-6"><div class="side-card h-100"><i class="fa-solid fa-people-group fa-2x text-green mb-2"></i><h5>Community</h5><p class="small text-muted mb-0">Local agents who know each district.</p></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% if agents %}
+<section class="section bg-light-tp">
+  <div class="container">
+    <div class="text-center mb-5"><div class="eyebrow">Our team</div><h2 class="section-title">Meet our agents</h2></div>
+    <div class="row g-4 justify-content-center">
+      {% for a in agents %}
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="side-card text-center h-100">
+          {% if a.photo %}<img src="{{ a.photo.url }}" class="avatar mb-2" style="width:80px;height:80px" alt="">{% else %}<span class="avatar mb-2" style="width:80px;height:80px;font-size:1.6rem">{{ a.first_name|first|default:a.username|first|upper }}</span>{% endif %}
+          <h6 class="mb-0">{{ a }}</h6>
+          <div class="small text-muted">{{ a.agent_profile.agency_name|default:"Theo Property" }}</div>
+          {% if a.agent_profile.is_verified %}<span class="badge bg-green-soft text-green mt-2"><i class="fa-solid fa-circle-check me-1"></i>Verified</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

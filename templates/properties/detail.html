@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% load static %}
+{% block back_url %}{% url 'properties:list' %}{% endblock %}
+{% load humanize %}
+{% block title %}{{ property.title }} | {{ site.site_name }}{% endblock %}
+{% block meta_description %}{{ property.description|truncatewords:25 }}{% endblock %}
+{% block content %}
+<div class="container py-4">
+  {% if not property.is_public %}
+    <div class="alert alert-warning"><i class="fa-solid fa-eye-slash me-2"></i>Preview only. This listing is
+      <strong>{{ property.get_approval_status_display }}</strong> and not visible to the public.</div>
+  {% endif %}
+  <nav aria-label="breadcrumb"><ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'pages:home' %}">Home</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'properties:list' %}">Properties</a></li>
+    <li class="breadcrumb-item active">{{ property.reference }}</li>
+  </ol></nav>
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        {% if property.is_hot_deal %}<span class="badge badge-hot"><i class="fa-solid fa-fire"></i> Hot deal</span>{% endif %}
+        {% if property.is_new %}<span class="badge badge-new">New</span>{% endif %}
+        {% if property.is_trending %}<span class="badge badge-trending"><i class="fa-solid fa-arrow-trend-up"></i> Trending</span>{% endif %}
+        <span class="badge badge-purpose">{{ property.get_purpose_display }}</span>
+        <span class="status-pill st-{{ property.availability }}">{{ property.get_availability_display }}</span>
+        {% if property.is_featured %}<span class="badge badge-featured">Featured</span>{% endif %}
+      </div>
+      <h1 class="h2 mb-1">{{ property.title }}</h1>
+      <div class="text-muted"><i class="fa-solid fa-location-dot me-1 text-green"></i>{{ property.address|default:property.location_display }}</div>
+    </div>
+    <div class="text-lg-end">
+      <div class="h2 text-green mb-1">{{ property.price|floatformat:0|intcomma }} {{ property.currency }}
+        {% if property.purpose == 'rent' and property.rent_period %}<small class="fs-6 text-muted">/ {{ property.rent_period }}</small>{% endif %}</div>
+      <div class="small text-muted">Ref: {{ property.reference }} · {{ property.views }} views</div>
+      {% if property.is_public %}
+      <form method="post" action="{% url 'favorites:toggle' property.pk %}" class="js-fav d-inline">{% csrf_token %}
+        <button class="btn btn-outline-danger btn-sm mt-2 {% if is_favorite %}active{% endif %}">
+          <i class="{% if is_favorite %}fa-solid{% else %}fa-regular{% endif %} fa-heart"></i>
+          <span class="fav-label">{% if is_favorite %}Saved{% else %}Save{% endif %}</span></button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if property.is_taken %}
+  <div class="taken-banner mb-4" role="note">
+    <i class="fa-solid fa-circle-check fa-2x"></i>
+    <div><div class="fw-bold fs-5">{{ property.get_availability_display }}: no longer available</div>
+      <div>This {{ property.get_property_type_display|lower }} has already been {{ property.get_availability_display|lower }}.
+        <a href="{% if similar %}#similar{% else %}{% url 'properties:list' %}{% endif %}">See similar properties</a>.</div></div>
+  </div>
+  {% endif %}
+
+  {% if property.is_hot_deal %}
+  <div class="deal-banner mb-4" role="note">
+    <i class="fa-solid fa-fire fa-2x"></i>
+    <div>
+      <div class="fw-bold fs-5">Hot deal: {{ property.deal_percent }}% below market</div>
+      <div>Similar {{ property.get_property_type_display|lower }}s {{ property.get_purpose_display|lower }} nearby are typically around
+        <strong>{{ property.market_price|floatformat:0|intcomma }} {{ property.currency }}</strong>{% if property.size_sqm %} for this size{% endif %}.
+        Good deals go fast. <a href="#contact">Message the agent</a>.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      {% with images=property.images.all cover=property.cover_image %}
+      {% if images %}
+      {# Main photo: slides when changing photo; clicking it opens the full-screen viewer that slides on its own #}
+      <div id="galleryMain" class="gallery-main carousel slide mb-2" data-bs-interval="4000" data-bs-pause="false" data-bs-touch="true">
+        <div class="carousel-inner h-100">
+          {% for img in images %}
+          <div class="carousel-item h-100{% if img.pk == cover.pk %} active{% endif %}">
+            <img src="{{ img.image.url }}" alt="{{ img.caption|default:property.title }}" data-gallery-open="{{ forloop.counter0 }}"
+                 {% if not forloop.first %}loading="lazy"{% endif %} title="Click to view all photos">
+          </div>
+          {% endfor %}
+        </div>
+        {% if images|length > 1 %}
+        <button class="carousel-control-prev" type="button" data-bs-target="#galleryMain" data-bs-slide="prev" aria-label="Previous photo"><span class="gallery-arrow"><i class="fa-solid fa-chevron-left"></i></span></button>
+        <button class="carousel-control-next" type="button" data-bs-target="#galleryMain" data-bs-slide="next" aria-label="Next photo"><span class="gallery-arrow"><i class="fa-solid fa-chevron-right"></i></span></button>
+        {% endif %}
+        <button type="button" class="gallery-expand" data-gallery-open="current" aria-label="View photos full screen"><i class="fa-solid fa-expand me-1"></i>{{ images|length }} photo{{ images|length|pluralize }}</button>
+      </div>
+      {% if images|length > 1 %}
+      <div class="gallery-thumbs d-flex gap-2 overflow-auto pb-2 mb-4">
+        {% for img in images %}<img src="{{ img.image.url }}" data-bs-target="#galleryMain" data-bs-slide-to="{{ forloop.counter0 }}" data-gallery-thumb alt="{{ img.caption|default:property.title }}" class="{% if img.pk == cover.pk %}active{% endif %}" loading="lazy">{% endfor %}
+      </div>
+      {% endif %}
+
+      {# Full-screen viewer: photos slide automatically #}
+      <div class="modal fade" id="galleryModal" tabindex="-1" aria-label="Property photos" aria-hidden="true">
+        <div class="modal-dialog modal-fullscreen">
+          <div class="modal-content gallery-viewer">
+            <button type="button" class="btn-close btn-close-white gallery-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div id="galleryViewer" class="carousel slide h-100" data-bs-interval="3500" data-bs-pause="false" data-bs-touch="true" data-bs-keyboard="true">
+              <div class="carousel-inner h-100">
+                {% for img in images %}
+                <div class="carousel-item h-100{% if forloop.first %} active{% endif %}">
+                  <img src="{{ img.image.url }}" alt="{{ img.caption|default:property.title }}" loading="lazy">
+                  <div class="gallery-counter">{{ forloop.counter }} / {{ images|length }}{% if img.caption %} · {{ img.caption }}{% endif %}</div>
+                </div>
+                {% endfor %}
+              </div>
+              {% if images|length > 1 %}
+              <button class="carousel-control-prev" type="button" data-bs-target="#galleryViewer" data-bs-slide="prev" aria-label="Previous photo"><span class="gallery-arrow"><i class="fa-solid fa-chevron-left"></i></span></button>
+              <button class="carousel-control-next" type="button" data-bs-target="#galleryViewer" data-bs-slide="next" aria-label="Next photo"><span class="gallery-arrow"><i class="fa-solid fa-chevron-right"></i></span></button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="gallery-main mb-2"><div class="h-100 d-flex align-items-center justify-content-center text-green opacity-50"><i class="fa-solid fa-image fa-4x"></i></div></div>
+      {% endif %}
+      {% endwith %}
+
+      <div class="row g-3 my-3">
+        {% if not property.is_land %}
+        <div class="col-6 col-md-3"><div class="fact"><i class="fa-solid fa-bed"></i><div class="value">{{ property.bedrooms }}</div><div class="label">Bedrooms</div></div></div>
+        <div class="col-6 col-md-3"><div class="fact"><i class="fa-solid fa-bath"></i><div class="value">{{ property.bathrooms }}</div><div class="label">Bathrooms</div></div></div>
+        <div class="col-6 col-md-3"><div class="fact"><i class="fa-solid fa-car"></i><div class="value">{{ property.parking_spaces }}</div><div class="label">Parking</div></div></div>
+        {% endif %}
+        <div class="col-6 col-md-3"><div class="fact"><i class="fa-solid fa-ruler-combined"></i><div class="value">{{ property.size_sqm|default:"–" }} m²</div><div class="label">Size</div></div></div>
+      </div>
+
+      <h4 class="mt-4">Description</h4>
+      <p class="text-muted" style="white-space: pre-line">{{ property.description }}</p>
+
+      <h4 class="mt-4">Property details</h4>
+      <div class="row small g-2 mb-3">
+        <div class="col-md-6"><strong>Property type:</strong> {{ property.get_property_type_display }}</div>
+        <div class="col-md-6"><strong>Category:</strong> {{ property.category|default:"–" }}</div>
+        <div class="col-md-6"><strong>Listing type:</strong> {{ property.get_purpose_display }}</div>
+        <div class="col-md-6"><strong>Status:</strong> {{ property.get_availability_display }}</div>
+        {% if property.district %}<div class="col-md-6"><strong>District:</strong> {{ property.district }}</div>{% endif %}
+        <div class="col-md-6"><strong>Sector / area:</strong> {{ property.sector|default:"–" }}{% if property.village %} / {{ property.village }}{% endif %}</div>
+        {% if property.year_built %}<div class="col-md-6"><strong>Year built:</strong> {{ property.year_built }}</div>{% endif %}
+        <div class="col-md-6"><strong>Furnished:</strong> {{ property.furnished|yesno:"Yes,No" }}</div>
+        <div class="col-md-6"><strong>Listed:</strong> {{ property.created_at|date:"d M Y" }}</div>
+      </div>
+
+      {% if property.amenity_list %}
+      <h4 class="mt-4">Amenities</h4>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        {% for a in property.amenity_list %}<span class="badge bg-green-soft text-green px-3 py-2"><i class="fa-solid fa-check me-1"></i>{{ a }}</span>{% endfor %}
+      </div>
+      {% endif %}
+
+      {% if property.latitude and property.longitude %}
+      <h4 class="mt-4">Location</h4>
+      <div id="map" class="mb-2"></div>
+      <a class="small" target="_blank" rel="noopener" href="https://www.google.com/maps?q={{ property.latitude }},{{ property.longitude }}"><i class="fa-solid fa-diamond-turn-right me-1"></i>Open in Google Maps</a>
+      {% endif %}
+
+      <h4 class="mt-5" id="questions"><i class="fa-regular fa-comments me-2" style="color:#d97757"></i>Questions &amp; answers</h4>
+      {% if public_qa %}
+      <p class="text-muted small">What other visitors asked about this property, and what the agent answered.</p>
+      <div class="d-flex flex-column gap-3">
+        {% for q in public_qa %}
+        <div class="border rounded-3 p-3">
+          <div class="chat-thread">
+            <div class="chat-msg theirs">
+              <div class="chat-meta">{{ q.public_name }} · {{ q.created_at|date:"d M Y" }}</div>
+              <div class="chat-bubble">{{ q.message }}</div>
+            </div>
+            {% for m in q.thread.all %}
+            <div class="chat-msg {% if m.from_client %}theirs{% else %}mine{% endif %}">
+              <div class="chat-meta">{% if m.from_client %}{{ q.public_name }}{% else %}<i class="fa-solid fa-circle-check text-green me-1"></i>{{ m.author|default:"Agent" }} (agent){% endif %} · {{ m.created_at|date:"d M Y" }}</div>
+              <div class="chat-bubble">{{ m.body }}</div>
+            </div>
+            {% empty %}
+            <div class="small text-muted"><i class="fa-regular fa-clock me-1"></i>Waiting for the agent's answer.</div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-muted small">{% if property.is_taken %}No questions were asked about this property.{% else %}No questions yet. Be the first to ask the agent using <a href="#contact">Send a message</a>.{% endif %}</p>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+      <div class="sticky-side d-grid gap-3">
+        {% if property.is_taken %}
+        <div class="side-card text-center taken-card" id="contact">
+          <div class="taken-icon mx-auto mb-3"><i class="fa-solid fa-handshake"></i></div>
+          <h5 class="fw-bold mb-1">This property has been {{ property.get_availability_display|lower }}</h5>
+          <p class="small text-muted mb-3">It is no longer available, so the agent is not taking questions about it.
+            Similar properties may still be available.</p>
+          <a href="{% if similar %}#similar{% else %}{% url 'properties:list' %}?property_type={{ property.property_type }}&purpose={{ property.purpose }}{% endif %}" class="btn btn-primary w-100">
+            <i class="fa-solid fa-magnifying-glass me-1"></i>See similar properties</a>
+        </div>
+        {% else %}
+        {% with person=property.contact_person %}
+        <div class="side-card" id="contact">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            {% if person %}
+              {% if person.photo %}<img src="{{ person.photo.url }}" class="avatar" alt="">{% else %}<span class="avatar">{{ person.first_name|first|default:person.username|first|upper }}</span>{% endif %}
+              <div>
+                <div class="fw-bold">{{ person }}</div>
+                <div class="small text-muted">Real estate agent{% if person.agent_profile.agency_name %} · {{ person.agent_profile.agency_name }}{% endif %}</div>
+              </div>
+            {% else %}
+              <span class="brand-logo-chip" style="width:64px;height:52px"><img src="{% static 'img/logo.png' %}" alt="" width="54" height="28"></span>
+              <div><div class="fw-bold">{{ site.site_name }}</div><div class="small text-muted">Customer service</div></div>
+            {% endif %}
+          </div>
+          {% with phone=person.phone|default:site.phone %}
+          <div class="d-grid gap-2 mb-3">
+            <a href="tel:{{ phone|cut:' ' }}" class="btn btn-outline-primary"><i class="fa-solid fa-phone me-1"></i>{{ phone }}</a>
+            <a href="https://wa.me/{% if person.phone %}{{ person.phone|cut:'+'|cut:' ' }}{% else %}{{ site.whatsapp }}{% endif %}?text={{ 'Hello, I am interested in '|urlencode }}{{ property.title|urlencode }}%20({{ property.reference }})" target="_blank" rel="noopener" class="btn btn-success"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>
+          </div>
+          {% endwith %}
+          <h6 class="fw-bold">Send a message</h6>
+          <form method="post" action="{% url 'inquiries:submit' property.slug %}">{% csrf_token %}
+            {% include "partials/form_fields.html" with form=inquiry_form col="col-12" %}
+            <button class="btn btn-primary w-100 mt-3"><i class="fa-regular fa-paper-plane me-1"></i>Send inquiry</button>
+            <div class="small text-muted mt-2"><i class="fa-solid fa-lock me-1"></i>Your phone stays private.</div>
+          </form>
+        </div>
+        {% endwith %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if similar %}
+  <h3 class="mt-5 mb-1" id="similar">Similar properties</h3>
+  <p class="text-muted small mb-4">Same type of property, also {{ property.get_purpose_display|lower }}, in the same area or at a similar price (within 30%).</p>
+  <div class="row g-4">
+    {% for p in similar %}<div class="col-sm-6 col-lg-4 col-xl-3">
+      <div class="similar-reason"><i class="fa-solid fa-{% if 'area' in p.similar_reason %}location-dot{% else %}scale-balanced{% endif %} me-1"></i>{{ p.similar_reason }}</div>
+      {% include "partials/property_card.html" %}</div>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+{% if property.latitude and property.longitude %}
+<script>
+  TPMap.show("map", [{ lat: {{ property.latitude|stringformat:"f" }}, lng: {{ property.longitude|stringformat:"f" }}, title: "{{ property.title|escapejs }}" }], { zoom: 15 });
+</script>
+{% endif %}
+{% endblock %}

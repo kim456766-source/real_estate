@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Submit your property (owners) | {{ site.site_name }}{% endblock %}
+{% block extra_head %}
+<style>
+  .choice input { position: absolute; opacity: 0; }
+  .choice .category-tile { cursor: pointer; height: 100%; }
+  .choice input:checked + .category-tile { border-color: var(--tp-green); background: var(--tp-green-soft);
+    box-shadow: 0 0 0 2px var(--tp-green) inset; }
+  .choice input:focus-visible + .category-tile { outline: 3px solid var(--tp-yellow); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container">
+  <div class="eyebrow">For property owners · Step 1 of 2</div>
+  <h1 class="mb-1">What kind of property are you submitting?</h1>
+  <p class="text-muted mb-0">No account needed. Choose the type first, then fill in the details.</p>
+</div></div>
+
+<div class="container py-5" style="max-width: 980px">
+  <form method="get" action="{% url 'properties:submit' %}">
+    <h5 class="mb-3">1. Type of property</h5>
+    <div class="row g-3 mb-5">
+      {% for value, label, icon, hint in types %}
+      <div class="col-6 col-md-4 col-lg">
+        <label class="choice d-block h-100">
+          <input type="radio" name="type" value="{{ value }}" required {% if selected_type == value %}checked{% endif %}>
+          <span class="category-tile">
+            <span class="icon"><i class="fa-solid {{ icon }}"></i></span>
+            <span class="d-block fw-semibold">{{ label }}</span>
+            <span class="d-block small text-muted">{{ hint }}</span>
+          </span>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <h5 class="mb-3">2. Is it for sale or for rent?</h5>
+    <div class="row g-3 mb-4">
+      {% for value, label, icon in purposes %}
+      <div class="col-6 col-md-3">
+        <label class="choice d-block">
+          <input type="radio" name="purpose" value="{{ value }}" required {% if selected_purpose == value %}checked{% endif %}>
+          <span class="category-tile py-3">
+            <span class="icon mb-1"><i class="fa-solid {{ icon }}"></i></span>
+            <span class="d-block fw-semibold">{{ label }}</span>
+          </span>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <button class="btn btn-primary btn-lg">Continue <i class="fa-solid fa-arrow-right ms-1"></i></button>
+    <p class="small text-muted mt-3 mb-0">We only accept houses, apartments, plots, land and commercial properties.
+      Something else? <a href="{% url 'pages:contact' %}">Contact us</a>.</p>
+  </form>
+</div>
+{% endblock %}

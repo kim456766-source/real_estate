@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Submit your property (owners) | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container">
+  <div class="eyebrow">For property owners · Step 2 of 2</div>
+  <h1 class="mb-2">Tell us about your {{ type_label|lower }}</h1>
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="badge bg-green fs-6 px-3 py-2"><i class="fa-solid {{ type_icon }} me-1"></i>{{ type_label }} · {{ purpose_label }}</span>
+    <a href="{% url 'properties:submit' %}?type={{ ptype }}&purpose={{ purpose }}&change=1" class="small">Change</a>
+  </div>
+</div></div>
+
+<div class="container py-5">
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <form method="post" action="{% url 'properties:submit' %}?type={{ ptype }}&purpose={{ purpose }}" enctype="multipart/form-data" novalidate>{% csrf_token %}
+        {% if form.errors %}<div class="alert alert-danger">Please correct the highlighted fields below.</div>{% endif %}
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+        <div style="position:absolute;left:-9999px" aria-hidden="true">{{ form.website }}</div>
+
+        <div class="side-card mb-4">
+          <h5 class="mb-3"><span class="badge bg-green me-2">1</span>Your contact details</h5>
+          <p class="small text-muted">Only our team sees these. Clients contact the agent who advertises your property.</p>
+          <div class="row g-3">
+            {% include "dashboard/properties/_field.html" with field=form.owner_name col="col-md-4" %}
+            {% include "dashboard/properties/_field.html" with field=form.owner_phone col="col-md-4" %}
+            {% include "dashboard/properties/_field.html" with field=form.owner_email col="col-md-4" %}
+          </div>
+        </div>
+
+        <div class="side-card mb-4">
+          <h5 class="mb-3"><span class="badge bg-green me-2">2</span>About the property</h5>
+          <div class="row g-3">
+            {% include "dashboard/properties/_field.html" with field=form.title col="col-12" %}
+            {% include "dashboard/properties/_field.html" with field=form.price col="col-md-5" %}
+            {% include "dashboard/properties/_field.html" with field=form.currency col="col-md-3" %}
+            {% if form.rent_period %}{% include "dashboard/properties/_field.html" with field=form.rent_period col="col-md-4" %}{% endif %}
+            {% include "dashboard/properties/_field.html" with field=form.description col="col-12" %}
+          </div>
+        </div>
+
+        <div class="side-card mb-4">
+          <h5 class="mb-3"><span class="badge bg-green me-2">3</span>Location</h5>
+          <div class="row g-3">
+            {% include "dashboard/properties/_field.html" with field=form.sector col="col-md-6" %}
+            {% include "dashboard/properties/_field.html" with field=form.village col="col-md-6" %}
+            {% include "dashboard/properties/_field.html" with field=form.address col="col-12" %}
+          </div>
+        </div>
+
+        <div class="side-card mb-4">
+          <h5 class="mb-3"><span class="badge bg-green me-2">4</span>Features</h5>
+          <div class="row g-3">
+            {% if form.bedrooms %}{% include "dashboard/properties/_field.html" with field=form.bedrooms col="col-6 col-md-3" %}{% endif %}
+            {% if form.bathrooms %}{% include "dashboard/properties/_field.html" with field=form.bathrooms col="col-6 col-md-3" %}{% endif %}
+            {% if form.parking_spaces %}{% include "dashboard/properties/_field.html" with field=form.parking_spaces col="col-6 col-md-3" %}{% endif %}
+            {% include "dashboard/properties/_field.html" with field=form.size_sqm col="col-6 col-md-3" %}
+            {% if is_land %}
+              <div class="col-md-9 small text-muted align-self-end">Tip: 1 hectare = 10,000 m². Mention the UPI / title deed in the description if you have it.</div>
+            {% endif %}
+            {% include "dashboard/properties/_field.html" with field=form.amenities col="col-md-8" %}
+            {% if form.furnished %}{% include "dashboard/properties/_field.html" with field=form.furnished col="col-md-4" %}{% endif %}
+          </div>
+        </div>
+
+        <div class="side-card mb-4">
+          <h5 class="mb-3"><span class="badge bg-green me-2">5</span>Photos</h5>
+          {% include "dashboard/properties/_field.html" with field=form.new_images col="" %}
+          <div class="row g-2 mt-2" id="upload-preview"></div>
+        </div>
+
+        <div class="side-card">
+          {% include "dashboard/properties/_field.html" with field=form.agree col="" %}
+          <button class="btn btn-primary btn-lg mt-3"><i class="fa-regular fa-paper-plane me-1"></i>Send my property for listing</button>
+        </div>
+      </form>
+    </div>
+
+    <aside class="col-lg-4">
+      <div class="side-card sticky-side">
+        <h5>How it works</h5>
+        <ol class="small text-muted ps-3 d-grid gap-2">
+          <li>Send us your property details and photos.</li>
+          <li>You receive a reference number.</li>
+          <li>An agent calls you to verify the property and agree on terms.</li>
+          <li>Your property goes live on Theo Property, and agents share it on social media and other platforms.</li>
+          <li>Interested clients contact the agent, who arranges visits with you.</li>
+        </ol>
+        <a href="{% url 'properties:status' %}" class="btn btn-outline-primary w-100 mt-2">Check a submission's status</a>
+        <a href="https://wa.me/{{ site.whatsapp }}" target="_blank" rel="noopener" class="btn btn-success w-100 mt-2"><i class="fa-brands fa-whatsapp me-1"></i>Questions? WhatsApp us</a>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

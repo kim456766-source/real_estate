@@ -1,0 +1,112 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+{% block page_title %}Welcome, {{ user.first_name|default:user.username }}{% endblock %}
+{% block content %}
+{% if pending_agent_applications %}
+<div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="fa-solid fa-user-clock me-2"></i><strong>{{ pending_agent_applications }}</strong> agent application{{ pending_agent_applications|pluralize }} waiting for your decision.</span>
+  <a href="{% url 'dashboard:agent_applications' %}" class="btn btn-sm btn-dark">Review applications</a>
+</div>
+{% endif %}
+{% if stats.unclaimed %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <span><i class="fa-solid fa-inbox me-2"></i><strong>{{ stats.unclaimed }}</strong> propert{{ stats.unclaimed|pluralize:"y,ies" }} waiting to be assigned to an agent.</span>
+  <a href="{% url 'dashboard:properties' %}?assigned=unclaimed" class="btn btn-sm btn-dark">View submissions</a>
+</div>
+{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-building"></i></div><div><div class="value">{{ stats.total }}</div><div class="label">Total properties</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-circle-check"></i></div><div><div class="value">{{ stats.available }}</div><div class="label">Available</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-solid fa-handshake"></i></div><div><div class="value">{{ stats.sold }} / {{ stats.rented }}</div><div class="label">Sold / Rented</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-solid fa-hourglass-half"></i></div><div><div class="value">{{ stats.pending }}</div><div class="label">Pending approval</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-regular fa-envelope"></i></div><div><div class="value">{{ stats.inquiries }}</div><div class="label">Inquiries ({{ stats.new_inquiries }} new)</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-regular fa-calendar"></i></div><div><div class="value">{{ stats.upcoming }}</div><div class="label">Upcoming visits</div></div></div></div>
+  {% if user.is_agent %}
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-bullhorn"></i></div><div><div class="value">{{ stats.mine }}</div><div class="label">My listings</div></div></div></div>
+  {% endif %}
+  {% if user.is_admin_role %}
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-solid fa-users"></i></div><div><div class="value">{{ stats.clients }}</div><div class="label">Clients · {{ stats.agents }} agents · {{ stats.owners }} owners</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-money-bill-wave"></i></div><div><div class="value">{{ stats.revenue|floatformat:0|intcomma }}</div><div class="label">RWF confirmed ({{ stats.payments }} payments)</div></div></div></div>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="dash-card h-100"><div class="card-head"><h6>Listings &amp; inquiries (last 6 months)</h6></div>
+      <div class="card-body-tp"><canvas id="monthlyChart" height="120"></canvas></div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="dash-card h-100"><div class="card-head"><h6>Properties by type</h6></div>
+      <div class="card-body-tp"><canvas id="typeChart" height="220"></canvas></div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="dash-card h-100">
+      <div class="card-head"><h6>Recent inquiries</h6><a href="{% url 'dashboard:inquiries' %}" class="small">View all</a></div>
+      <div class="table-responsive"><table class="table table-tp table-hover">
+        <tbody>
+        {% for i in recent_inquiries %}
+          <tr onclick="location='{% url 'dashboard:inquiry_detail' i.pk %}'" style="cursor:pointer">
+            <td><div class="fw-semibold">{{ i.name }}</div><div class="small text-muted text-truncate" style="max-width:240px">{{ i.property.title }}</div></td>
+            <td class="small text-muted">{{ i.created_at|timesince }} ago</td>
+            <td><span class="status-pill st-{{ i.status }}">{{ i.get_status_display }}</span></td>
+          </tr>
+        {% empty %}<tr><td class="text-muted text-center py-4">No inquiries yet.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="dash-card h-100">
+      <div class="card-head"><h6>Upcoming appointments</h6><a href="{% url 'dashboard:appointments' %}" class="small">View all</a></div>
+      <div class="table-responsive"><table class="table table-tp table-hover">
+        <tbody>
+        {% for a in upcoming_appointments %}
+          <tr onclick="location='{% url 'dashboard:appointment_detail' a.pk %}'" style="cursor:pointer">
+            <td><div class="fw-semibold">{{ a.name }} · {{ a.phone }}</div><div class="small text-muted text-truncate" style="max-width:240px">{{ a.property.title }}</div></td>
+            <td class="small">{{ a.scheduled_for|date:"d M, H:i" }}</td>
+            <td><span class="status-pill st-{{ a.status }}">{{ a.get_status_display }}</span></td>
+          </tr>
+        {% empty %}<tr><td class="text-muted text-center py-4">No upcoming visits.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+  {% if pending_properties %}
+  <div class="col-12">
+    <div class="dash-card">
+      <div class="card-head"><h6><i class="fa-solid fa-hourglass-half text-warning me-1"></i>Awaiting approval</h6></div>
+      <div class="table-responsive"><table class="table table-tp">
+        <tbody>
+        {% for p in pending_properties %}
+          <tr><td>{{ p.reference }}</td><td>{{ p.title }}</td><td>{{ p.created_by }}</td><td>{{ p.created_at|date:"d M Y" }}</td>
+            <td class="text-end">{% if user.is_admin_role %}<a href="{% url 'dashboard:property_review' p.pk %}" class="btn btn-sm btn-primary">Review</a>{% else %}<span class="status-pill st-pending">Pending</span>{% endif %}</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{{ charts|json_script:"chart-data" }}
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  const d = JSON.parse(document.getElementById("chart-data").textContent);
+  const green = "#146c43", yellow = "#f5c518", gray = "#5f6b76";
+  Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+  new Chart(document.getElementById("monthlyChart"), {
+    type: "bar",
+    data: { labels: d.month_labels, datasets: [
+      { label: "New listings", data: d.month_listings, backgroundColor: green, borderRadius: 6 },
+      { label: "Inquiries", data: d.month_inquiries, backgroundColor: yellow, borderRadius: 6 } ] },
+    options: { plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+  new Chart(document.getElementById("typeChart"), {
+    type: "doughnut",
+    data: { labels: d.type_labels, datasets: [{ data: d.type_values,
+      backgroundColor: [green, yellow, gray, "#3d9970", "#b8d8c8", "#1f2933"], borderWidth: 2 }] },
+    options: { plugins: { legend: { position: "bottom" } }, cutout: "62%" }
+  });
+</script>
+{% endblock %}

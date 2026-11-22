@@ -1,0 +1,32 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% url 'dashboard:properties' %}{% endblock %}
+{% load humanize %}
+{% block page_title %}Review {{ property.reference }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="dash-card"><div class="card-head"><h6>{{ property.title }}</h6>
+      <a href="{{ property.get_absolute_url }}" target="_blank" class="btn btn-sm btn-light">Open listing</a></div>
+      <div class="card-body-tp">
+        <div class="row g-2 mb-3">{% for img in property.images.all|slice:":6" %}<div class="col-4"><div class="media-frame"><img src="{{ img.image.url }}" alt=""></div></div>{% empty %}<p class="text-warning small">No photos uploaded.</p>{% endfor %}</div>
+        <dl class="row small mb-0">
+          <dt class="col-sm-4">Type / purpose</dt><dd class="col-sm-8">{{ property.get_property_type_display }} · {{ property.get_purpose_display }}</dd>
+          <dt class="col-sm-4">Price</dt><dd class="col-sm-8">{{ property.price|floatformat:0|intcomma }} {{ property.currency }}</dd>
+          <dt class="col-sm-4">Location</dt><dd class="col-sm-8">{{ property.address|default:property.location_display }}</dd>
+          <dt class="col-sm-4">Owner</dt><dd class="col-sm-8">{{ property.owner_display|default:"–" }}{% if property.owner_phone %} · <a href="tel:{{ property.owner_phone }}">{{ property.owner_phone }}</a>{% endif %}{% if property.owner_email %} · {{ property.owner_email }}{% endif %}</dd><dt class="col-sm-4">Source</dt><dd class="col-sm-8">{{ property.get_source_display }}</dd><dt class="col-sm-4">Agent</dt><dd class="col-sm-8">{{ property.agent|default:"Not assigned yet" }}</dd>
+          <dt class="col-sm-4">Submitted by</dt><dd class="col-sm-8">{{ property.created_by }} on {{ property.created_at|date:"d M Y H:i" }}</dd>
+          <dt class="col-sm-4">Description</dt><dd class="col-sm-8">{{ property.description|linebreaksbr }}</dd>
+        </dl>
+      </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="dash-card"><div class="card-head"><h6>Decision</h6></div><div class="card-body-tp">
+      <form method="post">{% csrf_token %}
+        {% include "partials/form_fields.html" with col="col-12" %}
+        <button class="btn btn-primary w-100 mt-3">Save decision</button>
+      </form>
+      <p class="small text-muted mt-3 mb-0">The owner and agent are notified by email and in-app when the status changes.</p>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

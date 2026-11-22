@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header{% if preset == 'deals' %} page-header-hot{% endif %}">
+  <div class="container">
+    <h1 class="mb-1">{% if preset == 'deals' %}<i class="fa-solid fa-fire me-2"></i>{% endif %}{{ title }}</h1>
+    {% if subtitle %}<p class="mb-1">{{ subtitle }}</p>{% endif %}
+    <p class="text-muted mb-0">{{ page_obj.paginator.count }} propert{{ page_obj.paginator.count|pluralize:"y,ies" }} found</p>
+  </div>
+</div>
+
+<div class="container py-4">
+  <form method="get" class="filter-bar mb-4">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-6 col-lg-3"><label for="{{ filter.form.location.id_for_label }}">Location</label>{{ filter.form.location }}</div>
+      {% if preset != 'land' and preset != 'commercial' %}
+        <div class="col-6 col-md-3 col-lg-2"><label for="{{ filter.form.property_type.id_for_label }}">Type</label>{{ filter.form.property_type }}</div>
+      {% endif %}
+      {% if preset != 'buy' and preset != 'rent' %}
+        <div class="col-6 col-md-3 col-lg-2"><label for="{{ filter.form.purpose.id_for_label }}">Buy or rent</label>{{ filter.form.purpose }}</div>
+      {% endif %}
+      <div class="col-6 col-md-3 col-lg-2"><label for="{{ filter.form.max_price.id_for_label }}">Max price</label>{{ filter.form.max_price }}</div>
+      <div class="col-6 col-md-3 col-lg-1"><label for="{{ filter.form.bedrooms.id_for_label }}">Beds</label>{{ filter.form.bedrooms }}</div>
+      <div class="col-12 col-md-6 col-lg-2 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
+        <button class="btn btn-light border" type="button" data-bs-toggle="collapse" data-bs-target="#moreFilters"
+                aria-expanded="{% if request.GET.min_price or request.GET.bathrooms or request.GET.min_size or request.GET.max_size or request.GET.availability or request.GET.q %}true{% else %}false{% endif %}"
+                aria-controls="moreFilters" title="More filters"><i class="fa-solid fa-sliders"></i><span class="visually-hidden">More filters</span></button>
+      </div>
+    </div>
+    <div class="collapse{% if request.GET.min_price or request.GET.bathrooms or request.GET.min_size or request.GET.max_size or request.GET.availability or request.GET.q %} show{% endif %}" id="moreFilters">
+      <div class="row g-2 mt-1">
+        <div class="col-12 col-md-4 col-lg-3"><label for="{{ filter.form.q.id_for_label }}">Keyword or reference</label>{{ filter.form.q }}</div>
+        <div class="col-6 col-md-4 col-lg-2"><label for="{{ filter.form.min_price.id_for_label }}">Min price</label>{{ filter.form.min_price }}</div>
+        <div class="col-6 col-md-4 col-lg-2"><label for="{{ filter.form.bathrooms.id_for_label }}">Baths (min)</label>{{ filter.form.bathrooms }}</div>
+        <div class="col-6 col-md-4 col-lg-2"><label for="{{ filter.form.min_size.id_for_label }}">Min m²</label>{{ filter.form.min_size }}</div>
+        <div class="col-6 col-md-4 col-lg-1"><label for="{{ filter.form.max_size.id_for_label }}">Max m²</label>{{ filter.form.max_size }}</div>
+        <div class="col-12 col-md-4 col-lg-2"><label for="{{ filter.form.availability.id_for_label }}">Availability</label>{{ filter.form.availability }}</div>
+      </div>
+    </div>
+    <input type="hidden" name="sort" value="{{ request.GET.sort }}">
+    {% if request.GET.category %}<input type="hidden" name="category" value="{{ request.GET.category }}">{% endif %}
+  </form>
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>{% if has_filters %}<a href="{{ request.path }}" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-xmark me-1"></i>Clear filters</a>{% endif %}</div>
+    <form method="get" class="d-flex align-items-center gap-2">
+      {% for key, value in request.GET.items %}{% if key != 'sort' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
+      <label class="small text-muted text-nowrap" for="id_sort">Sort by</label>
+      <select name="sort" id="id_sort" class="form-select" onchange="this.form.submit()">
+        <option value="">Recommended (hot deals first)</option>
+        <option value="-created_at" {% if request.GET.sort == '-created_at' %}selected{% endif %}>Newest first</option>
+        <option value="price" {% if request.GET.sort == 'price' %}selected{% endif %}>Price: low to high</option>
+        <option value="-price" {% if request.GET.sort == '-price' %}selected{% endif %}>Price: high to low</option>
+        <option value="-size_sqm" {% if request.GET.sort == '-size_sqm' %}selected{% endif %}>Largest first</option>
+        <option value="-views" {% if request.GET.sort == '-views' %}selected{% endif %}>Most viewed</option>
+      </select>
+    </form>
+  </div>
+
+  <div class="row g-4">
+    {% for p in page_obj %}
+      <div class="col-sm-6 col-lg-4 col-xl-3">{% include "partials/property_card.html" %}</div>
+    {% empty %}
+      <div class="col-12 text-center py-5">
+        <i class="fa-solid fa-house-circle-xmark fa-3x text-green opacity-50 mb-3"></i>
+        <h5>No properties match your search</h5>
+        <p class="text-muted">Try widening the price range or removing some filters.</p>
+        <a href="{{ request.path }}" class="btn btn-outline-primary">Clear filters</a>
+      </div>
+    {% endfor %}
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}

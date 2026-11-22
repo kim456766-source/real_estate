@@ -1,0 +1,46 @@
+{% load static %}
+{# The sign-in card, used on the Sign In page and in the Sign In pop-up. `p` = id prefix, `in_modal` = shown as pop-up. #}
+<div class="login-card">
+  <div class="login-head">
+    {% if in_modal %}<button type="button" class="login-close" data-bs-dismiss="modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>{% endif %}
+    <span class="login-logo"><img src="{% static 'img/logo.png' %}" alt="" width="70" height="36"></span>
+    <h2 class="login-title" id="{{ p }}title">Sign In</h2>
+    <p class="login-sub">Welcome back. Sign in to your account.</p>
+  </div>
+
+  <form method="post" action="{% url 'accounts:login' %}" class="login-body" novalidate data-login-form>{% csrf_token %}
+    <div class="login-error" role="alert" data-login-error {% if not form.errors %}hidden{% endif %}>
+      <i class="fa-solid fa-circle-exclamation me-1"></i><span>{% if form.non_field_errors %}{{ form.non_field_errors.0 }}{% elif form.errors %}Please enter your username or email, and your password.{% endif %}</span>
+    </div>
+
+    <label for="{{ p }}username" class="login-label">Username or email</label>
+    <div class="login-input{% if form.username.errors %} has-error{% endif %}">
+      <i class="fa-regular fa-user" aria-hidden="true"></i>
+      <input type="text" name="username" id="{{ p }}username" value="{{ form.username.value|default:'' }}"
+             autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" inputmode="email"
+             required placeholder="e.g. aline or aline@email.com">
+    </div>
+
+    <label for="{{ p }}password" class="login-label">Password</label>
+    <div class="login-input{% if form.password.errors %} has-error{% endif %}">
+      <i class="fa-solid fa-lock" aria-hidden="true"></i>
+      <input type="password" name="password" id="{{ p }}password" autocomplete="current-password" required placeholder="Your password">
+      <button type="button" class="login-eye" aria-label="Show password" data-toggle-password="{{ p }}password">
+        <i class="fa-regular fa-eye"></i></button>
+    </div>
+
+    <input type="hidden" name="next" value="{{ next|default:'' }}">
+    <div class="text-end mb-3"><a class="login-link small" href="{% url 'accounts:password_reset' %}">Forgot password?</a></div>
+    <button class="login-btn" data-login-submit><i class="fa-solid fa-right-to-bracket me-2"></i>Sign In</button>
+
+    {% if google_login_enabled %}
+    <div class="login-or"><span>or</span></div>
+    {% include "accounts/_google_button.html" %}
+    <div class="small text-muted text-center mt-2">For agents and administrators whose account uses their Google email.</div>
+    {% endif %}
+
+    <div class="login-foot">
+      Real estate agent? <a class="login-link" href="{% url 'accounts:agent_register' %}">Register as an agent</a>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,56 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% if member.role == 'admin' %}{% url 'dashboard:users' 'admin' %}{% else %}{% url 'dashboard:users' 'agent' %}{% endif %}{% endblock %}
+{% load humanize %}
+{% block page_title %}{{ member }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4 d-grid gap-3 align-content-start">
+    <div class="dash-card"><div class="card-body-tp text-center">
+      {% if member.photo %}<img src="{{ member.photo.url }}" class="avatar mb-2" style="width:80px;height:80px" alt="">{% else %}<span class="avatar mb-2" style="width:80px;height:80px;font-size:1.6rem">{{ member.username|first|upper }}</span>{% endif %}
+      <h5 class="mb-0">{{ member }}</h5>
+      <div class="small text-muted">{{ member.email }} · {{ member.phone|default:"no phone" }}</div>
+      <div class="small text-muted">Joined {{ member.date_joined|date:"d M Y" }} · last login {{ member.last_login|date:"d M Y"|default:"never" }}</div>
+      <div class="mt-2 d-flex flex-wrap gap-1 justify-content-center">
+        <span class="status-pill {% if member.is_active %}st-approved{% else %}st-inactive{% endif %}">{% if member.is_active %}Active{% else %}Inactive{% endif %}</span>
+        <span class="badge bg-light text-dark border">{% if member.is_superuser %}Super admin{% else %}{{ member.get_role_display }}{% endif %}</span>
+        {% if member.must_change_password %}<span class="badge bg-warning text-dark"><i class="fa-solid fa-key me-1"></i>Initial password, not changed yet</span>{% endif %}
+      </div>
+    </div></div>
+    {% if can_manage %}
+    <div class="dash-card"><div class="card-head"><h6>Quick actions</h6></div><div class="card-body-tp">
+      {% include "dashboard/users/_actions.html" with m=member next=request.get_full_path align="justify-content-start" %}
+    </div></div>
+    <div class="dash-card"><div class="card-head"><h6>Role &amp; access</h6></div><div class="card-body-tp">
+      <form method="post">{% csrf_token %}
+        {% include "partials/form_fields.html" with form=role_form col="col-12" %}
+        {% if agent_form %}<hr><h6 class="small fw-bold text-uppercase text-muted">Agent profile &amp; permissions</h6>
+          {% include "partials/form_fields.html" with form=agent_form col="col-12" %}{% endif %}
+        <button class="btn btn-primary w-100 mt-3">Save</button>
+      </form>
+    </div></div>
+    {% else %}
+    <div class="alert alert-light border small mb-0"><i class="fa-solid fa-lock me-1"></i>
+      {% if member == user %}This is your own account. Use <a href="{% url 'accounts:password_change' %}">Change password</a> for your password.
+      {% elif member.is_superuser %}The super admin account can't be changed here.
+      {% else %}Only the super admin can change administrator accounts.{% endif %}</div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8 d-grid gap-3 align-content-start">
+    <div class="dash-card"><div class="card-head"><h6>Listings handled</h6></div>
+      <div class="table-responsive"><table class="table table-tp"><tbody>
+        {% for p in properties %}<tr><td>{{ p.reference }}</td><td><a href="{% url 'dashboard:property_edit' p.pk %}">{{ p.title }}</a></td><td><span class="status-pill st-{{ p.approval_status }}">{{ p.get_approval_status_display }}</span></td></tr>
+        {% empty %}<tr><td class="text-muted">None</td></tr>{% endfor %}
+      </tbody></table></div></div>
+    <div class="dash-card"><div class="card-head"><h6>Assigned inquiries</h6></div>
+      <div class="table-responsive"><table class="table table-tp"><tbody>
+        {% for i in inquiries %}<tr><td><a href="{% url 'dashboard:inquiry_detail' i.pk %}">#{{ i.pk }}</a></td><td>{{ i.name }}</td><td>{{ i.property.title }}</td><td><span class="status-pill st-{{ i.status }}">{{ i.get_status_display }}</span></td></tr>
+        {% empty %}<tr><td class="text-muted">None</td></tr>{% endfor %}
+      </tbody></table></div></div>
+    <div class="dash-card"><div class="card-head"><h6>Appointments</h6></div>
+      <div class="table-responsive"><table class="table table-tp"><tbody>
+        {% for a in appointments %}<tr><td><a href="{% url 'dashboard:appointment_detail' a.pk %}">{{ a.scheduled_for|date:"d M Y H:i" }}</a></td><td>{{ a.name }}</td><td>{{ a.property.title }}</td><td><span class="status-pill st-{{ a.status }}">{{ a.get_status_display }}</span></td></tr>
+        {% empty %}<tr><td class="text-muted">None</td></tr>{% endfor %}
+      </tbody></table></div></div>
+  </div>
+</div>
+{% endblock %}

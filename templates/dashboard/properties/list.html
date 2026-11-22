@@ -1,0 +1,83 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+{% block page_title %}{% if not user.is_admin_role %}My listings{% elif assigned == 'unclaimed' %}Unassigned submissions{% else %}All properties{% endif %}{% endblock %}
+{% block content %}
+<div class="dash-card">
+  <div class="card-head">
+    <form method="get" class="d-flex gap-2 flex-wrap">
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Title, ref, sector, owner">
+      <select name="assigned" class="form-select" onchange="this.form.submit()">
+        <option value="">{% if user.is_admin_role %}All properties{% else %}All my listings{% endif %}</option>
+        {% if user.is_admin_role %}<option value="unclaimed" {% if assigned == 'unclaimed' %}selected{% endif %}>Unassigned (no agent)</option>{% endif %}
+        <option value="submissions" {% if assigned == 'submissions' %}selected{% endif %}>Owner submissions</option>
+      </select>
+      <select name="status" class="form-select" onchange="this.form.submit()">
+        <option value="">Any status</option>
+        {% for v, l in statuses %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-outline-primary" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </form>
+    <div class="d-flex gap-2">
+      <a href="{% url 'dashboard:export' 'properties' %}" class="btn btn-light"><i class="fa-solid fa-file-csv me-1"></i>Export</a>
+      <a href="{% url 'dashboard:property_create' %}" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i>Add property</a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-tp table-hover">
+      <thead><tr><th></th><th>Property</th><th>Price</th><th>Owner</th><th>Agent</th><th>Approval</th><th>Views</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for p in page_obj %}
+        <tr>
+          <td>{% with img=p.cover_image %}{% if img %}<img src="{{ img.image.url }}" class="thumb-sm" alt="">{% else %}<div class="thumb-sm"></div>{% endif %}{% endwith %}</td>
+          <td><div class="fw-semibold">{{ p.title|truncatechars:38 }}</div>
+            <div class="small text-muted">{{ p.reference }} · {{ p.get_property_type_display }} · {{ p.sector|default:p.district }}{% if p.is_featured %} · <i class="fa-solid fa-star text-warning"></i>{% endif %}
+              {% if p.source == 'website' %}<span class="badge bg-green-soft text-green ms-1">Owner submission</span>{% endif %}
+              {% if p.is_hot_deal %}<span class="badge badge-hot ms-1"><i class="fa-solid fa-fire"></i> {{ p.deal_percent }}% below</span>{% endif %}
+              {% if p.is_trending %}<span class="badge badge-trending ms-1"><i class="fa-solid fa-arrow-trend-up"></i> Trending</span>{% endif %}
+              {% if p.is_new %}<span class="badge badge-new ms-1">New</span>{% endif %}</div></td>
+          <td class="small text-nowrap">{{ p.price|floatformat:0|intcomma }} {{ p.currency }}<div class="text-muted">{{ p.get_purpose_display }}</div></td>
+          <td class="small">{{ p.owner_display|default:"–" }}{% if p.owner_phone %}<div><a href="tel:{{ p.owner_phone }}">{{ p.owner_phone }}</a></div>{% endif %}</td>
+          <td class="small">{% if p.agent %}{% if p.agent == user %}<span class="badge bg-green">You</span>{% else %}{{ p.agent }}{% endif %}{% else %}<span class="status-pill st-pending">Unassigned</span>{% endif %}</td>
+          <td><span class="status-pill st-{{ p.approval_status }}">{{ p.get_approval_status_display }}</span>
+            {% if p.availability != 'available' %}<div class="mt-1"><span class="status-pill st-{{ p.availability }}">{{ p.get_availability_display }}</span></div>{% endif %}</td>
+          <td class="small">{{ p.views }}</td>
+          <td class="text-end text-nowrap">
+            {% if user.is_admin_role and not p.agent and agents %}
+              <form method="post" action="{% url 'dashboard:property_assign' p.pk %}" class="d-inline-flex gap-1 align-middle">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="visually-hidden" for="assign-{{ p.pk }}">Assign {{ p.reference }} to agent</label>
+                <select name="agent" id="assign-{{ p.pk }}" class="form-select form-select-sm" style="width:auto" required>
+                  <option value="">Assign to…</option>
+                  {% for a in agents %}<option value="{{ a.pk }}">{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+                </select>
+                <button class="btn btn-sm btn-accent" title="Assign"><i class="fa-solid fa-user-check"></i><span class="visually-hidden">Assign</span></button></form>
+            {% endif %}
+            <a href="{% url 'dashboard:property_share' p.pk %}" class="btn btn-sm btn-light" title="Share kit"><i class="fa-solid fa-share-nodes"></i></a>
+            <a href="{{ p.get_absolute_url }}" class="btn btn-sm btn-light" title="View" target="_blank"><i class="fa-regular fa-eye"></i></a>
+            {% if user.is_admin_role or p.agent == user %}
+              <a href="{% url 'dashboard:property_edit' p.pk %}" class="btn btn-sm btn-light" title="Edit"><i class="fa-regular fa-pen-to-square"></i></a>
+              {% include "dashboard/properties/_taken_button.html" with next=request.get_full_path small=True %}
+            {% endif %}
+            {% if user.is_admin_role %}
+              <a href="{% url 'dashboard:property_review' p.pk %}" class="btn btn-sm btn-light" title="Review"><i class="fa-solid fa-clipboard-check"></i></a>
+              {% if p.approval_status != 'approved' %}
+              <form method="post" action="{% url 'dashboard:property_status' p.pk 'approved' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-success" title="Publish"><i class="fa-solid fa-check"></i></button></form>
+              {% else %}
+              <form method="post" action="{% url 'dashboard:property_status' p.pk 'inactive' %}" class="d-inline" data-confirm="Deactivate this listing?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-outline-secondary" title="Deactivate"><i class="fa-solid fa-ban"></i></button></form>
+              {% endif %}
+              <form method="post" action="{% url 'dashboard:property_delete' p.pk %}" class="d-inline" data-confirm="Delete {{ p.reference }} permanently?">{% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="fa-regular fa-trash-can"></i></button></form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-5">No properties here.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

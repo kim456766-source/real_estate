@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Sign In | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="login-stage">
+  {% include "accounts/_login_card.html" with p="page-" in_modal=False %}
+</div>
+{% endblock %}

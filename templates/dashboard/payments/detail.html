@@ -1,0 +1,41 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% url 'dashboard:payments' %}{% endblock %}
+{% load humanize %}
+{% block page_title %}Payment {{ payment.reference }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="dash-card"><div class="card-head"><h6>{{ payment.amount|floatformat:0|intcomma }} {{ payment.currency }}</h6>
+      <span class="status-pill st-{{ payment.status }}">{{ payment.get_status_display }}</span></div>
+      <div class="card-body-tp"><dl class="row small mb-0">
+        <dt class="col-sm-4">Client</dt><dd class="col-sm-8">{{ payment.payer_name }}{% if payment.payer_phone %} · {{ payment.payer_phone }}{% endif %}{% if payment.payer_email %} · {{ payment.payer_email }}{% endif %}</dd>
+        <dt class="col-sm-4">Property</dt><dd class="col-sm-8">{{ payment.property|default:"–" }}</dd>
+        <dt class="col-sm-4">Method</dt><dd class="col-sm-8">{{ payment.get_method_display }}{% if payment.payer_phone %} · {{ payment.payer_phone }}{% endif %}</dd>
+        <dt class="col-sm-4">Purpose</dt><dd class="col-sm-8">{{ payment.get_purpose_display }}</dd>
+        <dt class="col-sm-4">Transaction / receipt</dt><dd class="col-sm-8">{{ payment.provider_transaction_id|default:"–" }}</dd>
+        <dt class="col-sm-4">Paid at</dt><dd class="col-sm-8">{{ payment.paid_at|date:"d M Y H:i"|default:"–" }}</dd>
+        <dt class="col-sm-4">Provider confirmed</dt><dd class="col-sm-8">{{ payment.provider_confirmed|yesno:"Yes,No" }}</dd>
+        <dt class="col-sm-4">Verified by</dt><dd class="col-sm-8">{{ payment.verified_by|default:"–" }}</dd>
+        <dt class="col-sm-4">Recorded by</dt><dd class="col-sm-8">{{ payment.recorded_by|default:"–" }} on {{ payment.created_at|date:"d M Y H:i" }}</dd>
+        <dt class="col-sm-4">Notes</dt><dd class="col-sm-8">{{ payment.notes|default:"–" }}</dd>
+      </dl></div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="dash-card"><div class="card-head"><h6>Actions</h6></div><div class="card-body-tp d-grid gap-2">
+      {% if payment.status == 'pending' %}
+        {% if is_mobile %}
+          {% if not gateway_ready %}<div class="alert alert-warning small mb-2">{{ payment.get_method_display }} is not connected yet. Add merchant credentials to <code>.env</code> to request and verify payments automatically.</div>{% endif %}
+          <form method="post" action="{% url 'dashboard:payment_action' payment.pk 'request' %}">{% csrf_token %}<button class="btn btn-outline-primary w-100" {% if not gateway_ready %}disabled{% endif %}><i class="fa-solid fa-mobile-screen me-1"></i>Send payment request to phone</button></form>
+          <form method="post" action="{% url 'dashboard:payment_action' payment.pk 'check' %}">{% csrf_token %}<button class="btn btn-primary w-100" {% if not gateway_ready %}disabled{% endif %}><i class="fa-solid fa-rotate me-1"></i>Check status with provider</button></form>
+        {% else %}
+          <form method="post" action="{% url 'dashboard:payment_action' payment.pk 'verify' %}" data-confirm="Confirm you have verified this payment was received?">{% csrf_token %}<button class="btn btn-success w-100"><i class="fa-solid fa-check me-1"></i>Verify as received</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'dashboard:payment_action' payment.pk 'fail' %}">{% csrf_token %}<button class="btn btn-outline-danger w-100">Mark failed</button></form>
+        <form method="post" action="{% url 'dashboard:payment_action' payment.pk 'cancel' %}">{% csrf_token %}<button class="btn btn-outline-secondary w-100">Cancel</button></form>
+      {% else %}
+        <p class="text-muted small mb-0">This payment is {{ payment.get_status_display|lower }}. No further actions.</p>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

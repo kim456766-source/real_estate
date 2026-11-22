@@ -1,0 +1,33 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Property owners{% endblock %}
+{% block content %}
+<p class="text-muted small">Owners who submitted properties. They don't need an account, and their details are never shown publicly.</p>
+<div class="dash-card">
+  <div class="card-head">
+    <form method="get" class="d-flex gap-2">
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Name, phone or email">
+      <button class="btn btn-outline-primary" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-tp table-hover">
+      <thead><tr><th>Owner</th><th>Phone</th><th>Email</th><th>Properties</th><th>Live</th><th></th></tr></thead>
+      <tbody>
+      {% for o in page_obj %}
+        <tr>
+          <td class="fw-semibold">{{ o.owner_name }}</td>
+          <td>{% if o.owner_phone %}<a href="tel:{{ o.owner_phone }}">{{ o.owner_phone }}</a>{% else %}–{% endif %}</td>
+          <td class="small">{{ o.owner_email|default:"–" }}</td>
+          <td>{{ o.n }}</td><td>{{ o.live }}</td>
+          <td class="text-end text-nowrap">
+            <a href="{% url 'dashboard:properties' %}?q={{ o.owner_phone|default:o.owner_name|urlencode }}" class="btn btn-sm btn-light">Properties</a>
+            {% if o.owner_phone %}<a href="https://wa.me/{{ o.owner_phone|cut:'+'|cut:' ' }}" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>{% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">No owners yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block content %}
+<section class="hero">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-7">
+        <span class="badge bg-warning text-dark mb-3 px-3 py-2"><i class="fa-solid fa-location-dot me-1"></i>Rwanda's property marketplace</span>
+        <h1 class="mb-3">Find the right place to <span class="hero-accent">live, work</span> and invest.</h1>
+        <p class="lead mb-4">Houses, apartments, land and commercial buildings across Rwanda, listed by verified owners and agents.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{% url 'properties:list' %}" class="btn btn-accent btn-lg">Browse properties</a>
+          <a href="{% url 'properties:submit' %}" class="btn btn-outline-light btn-lg"><i class="fa-solid fa-key me-1"></i>Owners: submit your property</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <form class="search-panel" method="get" action="{% url 'properties:list' %}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-6 col-lg-3"><label>Location</label>
+        <input type="text" name="location" class="form-control" placeholder="e.g. Kicukiro, Kimihurura"></div>
+      <div class="col-md-6 col-lg-2"><label>Type</label>{{ filter.form.property_type }}</div>
+      <div class="col-md-4 col-lg-2"><label>Buy / Rent</label>{{ filter.form.purpose }}</div>
+      <div class="col-md-4 col-lg-2"><label>Max price (RWF)</label>
+        <input type="number" name="max_price" class="form-control" placeholder="Any" min="0"></div>
+      <div class="col-md-4 col-lg-1"><label>Beds</label>
+        <select name="bedrooms" class="form-select"><option value="">Any</option>{% for n in "12345" %}<option value="{{ n }}">{{ n }}+</option>{% endfor %}</select></div>
+      <div class="col-lg-2 d-grid"><button class="btn btn-primary btn-lg"><i class="fa-solid fa-magnifying-glass me-1"></i> Search</button></div>
+    </div>
+  </form>
+</div>
+
+{% if hot_deals %}
+<section class="section hot-section">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <div>
+        <div class="eyebrow eyebrow-hot"><i class="fa-solid fa-fire me-1"></i>Below market price</div>
+        <h2 class="section-title mb-1">Hot deals</h2>
+        <p class="text-muted mb-0">Priced at least 10% below similar properties in the same area. Updated automatically.</p>
+      </div>
+      <a href="{% url 'properties:deals' %}" class="btn btn-hot">See all hot deals <i class="fa-solid fa-arrow-right ms-1"></i></a>
+    </div>
+    <div class="row g-4">
+      {% for p in hot_deals %}<div class="col-sm-6 col-lg-4 col-xl-3">{% include "partials/property_card.html" %}</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="container">
+    <div class="text-center mb-5">
+      <div class="eyebrow">Browse by category</div>
+      <h2 class="section-title">What are you looking for?</h2>
+    </div>
+    <div class="row g-3 justify-content-center">
+      {% for c in categories %}
+      <div class="col-6 col-md-4 col-lg-2">
+        <a class="category-tile" href="{% url 'properties:list' %}?category={{ c.slug }}">
+          <div class="icon"><i class="fa-solid {{ c.icon }}"></i></div>
+          <div class="fw-semibold">{{ c.name }}</div>
+          <div class="small text-muted">{{ c.n }} listing{{ c.n|pluralize }}</div>
+        </a>
+      </div>
+      {% empty %}
+      <div class="col-6 col-md-3"><a class="category-tile" href="{% url 'properties:buy' %}"><div class="icon"><i class="fa-solid fa-house"></i></div><div class="fw-semibold">For sale</div></a></div>
+      <div class="col-6 col-md-3"><a class="category-tile" href="{% url 'properties:rent' %}"><div class="icon"><i class="fa-solid fa-key"></i></div><div class="fw-semibold">For rent</div></a></div>
+      <div class="col-6 col-md-3"><a class="category-tile" href="{% url 'properties:land' %}"><div class="icon"><i class="fa-solid fa-map"></i></div><div class="fw-semibold">Land</div></a></div>
+      <div class="col-6 col-md-3"><a class="category-tile" href="{% url 'properties:commercial' %}"><div class="icon"><i class="fa-solid fa-building"></i></div><div class="fw-semibold">Commercial</div></a></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section bg-light-tp">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <div><div class="eyebrow eyebrow-trending"><i class="fa-solid fa-arrow-trend-up me-1"></i>Most popular this week</div>
+        <h2 class="section-title mb-0">Trending now</h2></div>
+      <a href="{% url 'properties:list' %}" class="btn btn-outline-primary">View all <i class="fa-solid fa-arrow-right ms-1"></i></a>
+    </div>
+    <div class="row g-4">
+      {% for p in trending %}
+        <div class="col-sm-6 col-lg-4 col-xl-3">{% include "partials/property_card.html" %}</div>
+      {% empty %}
+        <div class="col-12 text-center text-muted py-5">No properties listed yet. <a href="{% url 'properties:submit' %}">Submit the first one.</a></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% if just_listed %}
+<section class="section">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <div><div class="eyebrow eyebrow-new">Fresh on the market</div><h2 class="section-title mb-0">Just listed</h2></div>
+      <a href="{% url 'properties:list' %}?sort=-created_at" class="btn btn-outline-primary">All new listings <i class="fa-solid fa-arrow-right ms-1"></i></a>
+    </div>
+    <div class="row g-4">
+      {% for p in just_listed %}<div class="col-sm-6 col-lg-4 col-xl-3">{% include "partials/property_card.html" %}</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section bg-green text-white">
+  <div class="container">
+    <div class="row text-center g-4">
+      <div class="col-6 col-md-3"><div class="stat-number">{{ stats.properties|intcomma }}</div><div>Active listings</div></div>
+      <div class="col-6 col-md-3"><div class="stat-number">{{ stats.locations }}</div><div>Locations covered</div></div>
+      <div class="col-6 col-md-3"><div class="stat-number">{{ stats.agents }}</div><div>Professional agents</div></div>
+      <div class="col-6 col-md-3"><div class="stat-number">{{ stats.inquiries|intcomma }}</div><div>Client inquiries</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="row g-5 align-items-center">
+      <div class="col-lg-6">
+        <div class="eyebrow">Why Theo Property</div>
+        <h2 class="section-title mb-4">A trusted way to buy, rent and sell property in Rwanda</h2>
+        <div class="d-flex gap-3 mb-4">
+          <div class="category-tile p-0 border-0"><div class="icon mb-0"><i class="fa-solid fa-shield-halved"></i></div></div>
+          <div><h5>Verified listings</h5><p class="text-muted mb-0">Every property is reviewed by our team before it goes live.</p></div>
+        </div>
+        <div class="d-flex gap-3 mb-4">
+          <div class="category-tile p-0 border-0"><div class="icon mb-0"><i class="fa-solid fa-calendar-check"></i></div></div>
+          <div><h5>Book visits online</h5><p class="text-muted mb-0">Request a viewing and get confirmation from the agent.</p></div>
+        </div>
+        <div class="d-flex gap-3">
+          <div class="category-tile p-0 border-0"><div class="icon mb-0"><i class="fa-solid fa-handshake"></i></div></div>
+          <div><h5>Local expertise</h5><p class="text-muted mb-0">Agents who know Kigali and every province.</p></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="bg-green-soft rounded-4 p-5">
+          <h3 class="mb-3">Own a property?</h3>
+          <p class="text-muted">Submit your property in 5 minutes, no account needed. Our agents verify it and advertise it on our website, social media and other platforms.</p>
+          <a href="{% url 'properties:submit' %}" class="btn btn-primary btn-lg"><i class="fa-solid fa-key me-1"></i>Submit your property</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

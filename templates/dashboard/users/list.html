@@ -1,0 +1,39 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}{{ role_label }}s{% endblock %}
+{% block content %}
+<div class="dash-card">
+  <div class="card-head">
+    <form method="get" class="d-flex gap-2">
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Search name, email, phone">
+      <button class="btn btn-outline-primary"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </form>
+    {% if role == 'agent' %}<a href="{% url 'dashboard:agent_create' %}" class="btn btn-primary"><i class="fa-solid fa-user-plus me-1"></i>Register agent</a>{% endif %}
+    {% if role == 'admin' and user.is_superuser %}<a href="{% url 'dashboard:admin_create' %}" class="btn btn-primary"><i class="fa-solid fa-user-shield me-1"></i>Create administrator</a>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-tp table-hover">
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th>
+        <th>Listings</th>
+        <th>Joined</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for m in page_obj %}
+        <tr>
+          <td class="fw-semibold">{{ m }}{% if m.is_superuser %} <span class="badge bg-dark">Super admin</span>{% endif %}
+            <div class="small text-muted fw-normal">@{{ m.username }}</div>
+            {% if m.must_change_password %}<span class="badge bg-warning text-dark fw-normal"><i class="fa-solid fa-key me-1"></i>Initial password, not changed yet</span>{% endif %}</td>
+          <td class="small">{{ m.email }}</td>
+          <td class="small">{{ m.phone|default:"–" }}</td>
+          <td>{{ m.n_agent }}</td>
+          <td class="small">{{ m.date_joined|date:"d M Y" }}</td>
+          <td>{% if m.is_active %}<span class="status-pill st-approved">Active</span>{% else %}<span class="status-pill st-inactive">Inactive</span>{% endif %}</td>
+          <td class="text-end"><div class="d-flex flex-wrap gap-1 justify-content-end">
+            {% include "dashboard/users/_actions.html" with next=request.get_full_path %}
+            <a href="{% url 'dashboard:user_detail' m.pk %}" class="btn btn-sm btn-light">Details</a></div></td>
+        </tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-5">No {{ role_label|lower }}s found.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

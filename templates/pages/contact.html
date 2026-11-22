@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Contact us | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container">
+  <div class="eyebrow">Support</div>
+  <h1 class="mb-1">How can we help?</h1>
+  <p class="text-muted mb-0">Chat with us on WhatsApp or give us a call. No account needed.</p>
+</div></div>
+
+<div class="container py-5">
+  <div class="row g-3 justify-content-center mb-5">
+    <div class="col-md-6 col-lg-5">
+      <a class="support-card support-whatsapp" target="_blank" rel="noopener"
+         href="https://wa.me/{{ site.whatsapp }}?text={{ 'Hello Theo Property, I need help with '|urlencode }}">
+        <i class="fa-brands fa-whatsapp"></i>
+        <span class="support-title">Chat on WhatsApp</span>
+        <span class="support-detail">{{ site.whatsapp_display }}</span>
+        <span class="support-hint">Fastest reply · opens WhatsApp with a message ready to send</span>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-5">
+      <a class="support-card support-call" href="tel:+{{ site.whatsapp }}">
+        <i class="fa-solid fa-phone"></i>
+        <span class="support-title">Call us</span>
+        <span class="support-detail">{{ site.phone }}</span>
+        <span class="support-hint">Mon–Sat, 8:00–18:00</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4 justify-content-center">
+    <div class="col-lg-10">
+      <div class="side-card">
+        <h5 class="mb-3">Quick questions on WhatsApp</h5>
+        <div class="d-flex flex-wrap gap-2">
+          {% for topic in whatsapp_topics %}
+            <a class="btn btn-outline-success" target="_blank" rel="noopener"
+               href="https://wa.me/{{ site.whatsapp }}?text={{ topic.1|urlencode }}"><i class="fa-brands fa-whatsapp me-1"></i>{{ topic.0 }}</a>
+          {% endfor %}
+        </div>
+        <hr>
+        <div class="row g-3 small">
+          <div class="col-md-6 d-flex gap-3"><i class="fa-solid fa-location-dot fa-lg text-green mt-1"></i><div><strong>Office</strong><br>{{ site.address }}</div></div>
+          <div class="col-md-6 d-flex gap-3"><i class="fa-regular fa-clock fa-lg text-green mt-1"></i><div><strong>Opening hours</strong><br>Monday – Saturday, 8:00 – 18:00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}{{ page_heading|default:"Register agent" }}{% endblock %}
+{% block content %}
+<div class="dash-card" style="max-width: 860px"><div class="card-body-tp">
+  <div class="alert alert-info small"><i class="fa-solid fa-key me-1"></i>The password you set here is an <strong>initial password</strong>.
+    Give it to the person privately (not by email or group chat). They sign in with it once and must then choose their own.</div>
+  <form method="post">{% csrf_token %}
+    {% include "partials/form_fields.html" %}
+    <button class="btn btn-primary mt-4"><i class="fa-solid fa-user-plus me-1"></i>{{ submit_label|default:"Create agent account" }}</button>
+  </form>
+</div></div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% url 'dashboard:appointments' %}{% endblock %}
+{% block page_title %}Appointment #{{ appt.pk }}{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="dash-card"><div class="card-head"><h6>Visit details</h6><span class="status-pill st-{{ appt.status }}">{{ appt.get_status_display }}</span></div>
+      <div class="card-body-tp">
+        <dl class="row small mb-0">
+          <dt class="col-sm-3">When</dt><dd class="col-sm-9 fw-semibold">{{ appt.scheduled_for|date:"l d F Y, H:i" }}</dd>
+          <dt class="col-sm-3">Client</dt><dd class="col-sm-9">{{ appt.name }} · <a href="tel:{{ appt.phone }}">{{ appt.phone }}</a> · <a href="https://wa.me/{{ appt.phone|cut:"+"|cut:" " }}" target="_blank" rel="noopener">WhatsApp</a>{% if appt.email %} · <a href="mailto:{{ appt.email }}">{{ appt.email }}</a>{% endif %}</dd>
+          <dt class="col-sm-3">Property</dt><dd class="col-sm-9"><a href="{{ appt.property.get_absolute_url }}" target="_blank">{{ appt.property }}</a><div class="text-muted">{{ appt.property.address|default:appt.property.location_display }}</div></dd>
+          <dt class="col-sm-3">Agent</dt><dd class="col-sm-9">{{ appt.agent|default:"Unassigned" }}</dd>
+          <dt class="col-sm-3">Client note</dt><dd class="col-sm-9">{{ appt.note|default:"–" }}</dd>
+          <dt class="col-sm-3">Requested</dt><dd class="col-sm-9">{{ appt.created_at|date:"d M Y H:i" }}</dd>
+        </dl>
+      </div></div>
+  </div>
+  <div class="col-lg-5">
+    {% if form %}
+    <div class="dash-card"><div class="card-head"><h6>Confirm, reschedule or cancel</h6></div><div class="card-body-tp">
+      <form method="post">{% csrf_token %}
+        {% include "partials/form_fields.html" with col="col-12" %}
+        <button class="btn btn-primary w-100 mt-3">Save &amp; notify client</button>
+      </form>
+    </div></div>
+    {% else %}
+    <div class="alert alert-info">You can view this appointment, but only administrators and authorised agents can change it.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

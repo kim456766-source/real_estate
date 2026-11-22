@@ -1,0 +1,21 @@
+{% extends "accounts/_auth_layout.html" %}
+{% block title %}Application received | {{ site.site_name }}{% endblock %}
+{% block auth_content %}
+<div class="text-center">
+  <i class="fa-solid fa-circle-check fa-4x text-green mb-3"></i>
+  <h2>Thank you, {{ name }}!</h2>
+  <p class="text-muted">Your agent application has been sent. The administrator will review it shortly.</p>
+  <div class="bg-light-tp rounded-3 p-3 text-start small my-4">
+    <div class="fw-semibold mb-2">What happens next</div>
+    <ul class="mb-0 ps-3 d-grid gap-1">
+      <li>The administrator checks your details and may call you.</li>
+      <li>Once approved, log in with the username and password you chose.</li>
+      <li>Until then, the login page will show that your application is pending.</li>
+    </ul>
+  </div>
+  <div class="d-flex gap-2 justify-content-center flex-wrap">
+    <a href="{% url 'accounts:login' %}" class="btn btn-primary">Go to login</a>
+    <a href="https://wa.me/{{ site.whatsapp }}?text={{ 'Hello Theo Property, I just applied to become an agent.'|urlencode }}" target="_blank" rel="noopener" class="btn btn-success"><i class="fa-brands fa-whatsapp me-1"></i>Questions? WhatsApp us</a>
+  </div>
+</div>
+{% endblock %}

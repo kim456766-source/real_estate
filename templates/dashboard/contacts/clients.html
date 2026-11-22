@@ -1,0 +1,32 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Clients{% endblock %}
+{% block content %}
+<p class="text-muted small">Visitors who sent an inquiry or booked a visit. Clients don't need an account, so they're grouped by phone number or email.</p>
+<div class="dash-card">
+  <div class="card-head">
+    <form method="get" class="d-flex gap-2">
+      <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Name, phone or email">
+      <button class="btn btn-outline-primary" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </form>
+    <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-file-csv me-1"></i>Export inquiries</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-tp table-hover">
+      <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Inquiries</th><th>Visits</th><th>Last contact</th><th></th></tr></thead>
+      <tbody>
+      {% for c in page_obj %}
+        <tr>
+          <td class="fw-semibold">{{ c.name }}</td>
+          <td>{% if c.phone %}<a href="tel:{{ c.phone }}">{{ c.phone }}</a>{% else %}–{% endif %}</td>
+          <td class="small">{% if c.email %}<a href="mailto:{{ c.email }}">{{ c.email }}</a>{% else %}–{% endif %}</td>
+          <td>{{ c.inquiries }}</td><td>{{ c.visits }}</td>
+          <td class="small text-nowrap">{{ c.last|date:"d M Y" }}</td>
+          <td class="text-end">{% if c.phone %}<a href="https://wa.me/{{ c.phone|cut:'+'|cut:' ' }}" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i></a>{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="7" class="text-center text-muted py-5">No clients yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+{% block page_title %}Reports{% endblock %}
+{% block content %}
+<div class="dash-card mb-3"><div class="card-head"><h6>Download data (CSV / Excel)</h6>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'dashboard:export' 'properties' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Properties</a>
+    <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Inquiries</a>
+    <a href="{% url 'dashboard:export' 'appointments' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Appointments</a>
+    {% if user.is_admin_role %}<a href="{% url 'dashboard:export' 'payments' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Payments</a>{% endif %}
+  </div></div></div>
+
+<div class="row g-3">
+  <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Listings by sector</h6></div>
+    <table class="table table-tp"><tbody>{% for r in by_sector %}<tr><td>{{ r.sector }}</td><td class="text-end fw-semibold">{{ r.n }}</td></tr>{% empty %}<tr><td class="text-muted">No data</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Listings by type</h6></div>
+    <table class="table table-tp"><tbody>{% for r in by_type %}<tr><td>{% for k, v in type_labels.items %}{% if k == r.property_type %}{{ v }}{% endif %}{% endfor %}</td><td class="text-end fw-semibold">{{ r.n }}</td></tr>{% empty %}<tr><td class="text-muted">No data</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Sale vs rent</h6></div>
+    <table class="table table-tp"><tbody>{% for r in by_purpose %}<tr><td>{% for k, v in purpose_labels.items %}{% if k == r.purpose %}{{ v }}{% endif %}{% endfor %}</td><td class="text-end fw-semibold">{{ r.n }}</td></tr>{% empty %}<tr><td class="text-muted">No data</td></tr>{% endfor %}</tbody></table></div></div>
+
+  <div class="col-lg-6"><div class="dash-card h-100"><div class="card-head"><h6>Most viewed listings</h6></div>
+    <table class="table table-tp"><thead><tr><th>Property</th><th class="text-end">Views</th></tr></thead><tbody>{% for p in top_viewed %}<tr><td>{{ p.reference }} · {{ p.title|truncatechars:40 }}</td><td class="text-end">{{ p.views|intcomma }}</td></tr>{% empty %}<tr><td class="text-muted">No data</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="dash-card h-100"><div class="card-head"><h6>Most inquired listings</h6></div>
+    <table class="table table-tp"><thead><tr><th>Property</th><th class="text-end">Inquiries</th></tr></thead><tbody>{% for p in most_inquired %}<tr><td>{{ p.reference }} · {{ p.title|truncatechars:40 }}</td><td class="text-end">{{ p.n }}</td></tr>{% empty %}<tr><td class="text-muted">No data</td></tr>{% endfor %}</tbody></table></div></div>
+
+  {% if user.is_admin_role %}
+  <div class="col-lg-6"><div class="dash-card h-100"><div class="card-head"><h6>Agent performance</h6></div>
+    <table class="table table-tp"><thead><tr><th>Agent</th><th class="text-end">Listings</th><th class="text-end">Inquiries</th><th class="text-end">Visits</th></tr></thead>
+      <tbody>{% for a in agent_performance %}<tr><td>{{ a }}</td><td class="text-end">{{ a.listings }}</td><td class="text-end">{{ a.inq }}</td><td class="text-end">{{ a.visits }}</td></tr>{% empty %}<tr><td class="text-muted">No agents</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="col-lg-6"><div class="dash-card h-100"><div class="card-head"><h6>Confirmed revenue by method</h6></div>
+    <table class="table table-tp"><thead><tr><th>Method</th><th class="text-end">Count</th><th class="text-end">Total</th></tr></thead>
+      <tbody>{% for r in payments_by_method %}<tr><td>{% for k, v in method_labels.items %}{% if k == r.method %}{{ v }}{% endif %}{% endfor %}</td><td class="text-end">{{ r.n }}</td><td class="text-end">{{ r.total|floatformat:0|intcomma }} {{ r.currency }}</td></tr>{% empty %}<tr><td class="text-muted">No confirmed payments</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endif %}
+</div>
+{% endblock %}

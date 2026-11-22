@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Notifications | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <h1 class="mb-0">Notifications</h1>
+  <form method="post" action="{% url 'notifications:mark_all_read' %}">{% csrf_token %}<button class="btn btn-outline-primary btn-sm">Mark all as read</button></form>
+</div></div>
+<div class="container py-5" style="max-width: 860px">
+  <div class="list-group">
+    {% for n in page_obj %}
+      <div class="list-group-item d-flex gap-3 py-3 {% if not n.is_read %}bg-green-soft{% endif %}">
+        <i class="fa-regular fa-bell text-green mt-1"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ n.title }}</div>
+          <div class="small text-muted">{{ n.message }}</div>
+          <div class="small text-muted mt-1">{{ n.created_at|timesince }} ago</div>
+        </div>
+        <form method="post" action="{% url 'notifications:mark_read' n.pk %}">{% csrf_token %}
+          <button class="btn btn-sm btn-link">{% if n.link %}Open{% else %}{% if n.is_read %}Read{% else %}Mark read{% endif %}{% endif %}</button></form>
+      </div>
+    {% empty %}<p class="text-muted text-center">You're all caught up.</p>{% endfor %}
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}

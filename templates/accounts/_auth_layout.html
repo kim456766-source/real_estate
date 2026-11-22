@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-light-tp py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-{% block width %}5{% endblock %}">
+        <div class="side-card p-4 p-md-5 shadow-sm">
+          {% block auth_content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

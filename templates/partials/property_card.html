@@ -1,0 +1,43 @@
+{% load humanize %}
+<article class="pcard{% if p.is_hot_deal %} is-hot{% endif %}">
+  <div class="pcard-media">
+    {% with img=p.cover_image %}
+      {% if img %}<img src="{{ img.image.url }}" alt="{{ p.title }}" loading="lazy">
+      {% else %}<span class="pcard-placeholder"><i class="fa-solid {% if p.is_land %}fa-vector-square{% elif p.property_type == 'apartment' %}fa-building{% elif p.property_type == 'commercial' %}fa-shop{% else %}fa-house{% endif %}"></i></span>{% endif %}
+    {% endwith %}
+
+    <div class="pcard-tags">
+      {% if p.is_hot_deal %}<span class="ptag ptag-hot"><i class="fa-solid fa-fire"></i> {{ p.deal_percent }}% below market</span>{% endif %}
+      {% if p.is_new %}<span class="ptag ptag-new">New</span>{% endif %}
+      {% if p.is_trending and not p.is_hot_deal %}<span class="ptag ptag-trend"><i class="fa-solid fa-arrow-trend-up"></i> Trending</span>{% endif %}
+      {% if p.availability != 'available' %}<span class="ptag ptag-status">{{ p.get_availability_display }}</span>{% endif %}
+    </div>
+
+    <div class="pcard-actions">
+      <form method="post" action="{% url 'favorites:toggle' p.pk %}" class="js-fav">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="pcard-btn{% if p.pk in fav_ids %} active{% endif %}" title="Save" aria-label="Save {{ p.title }}">
+          <i class="{% if p.pk in fav_ids %}fa-solid{% else %}fa-regular{% endif %} fa-heart"></i>
+        </button>
+      </form>
+      <button type="button" class="pcard-btn js-share" title="Share" aria-label="Share {{ p.title }}"
+              data-url="{{ request.scheme }}://{{ request.get_host }}{{ p.get_absolute_url }}" data-title="{{ p.title }}">
+        <i class="fa-solid fa-arrow-up-from-bracket"></i>
+      </button>
+    </div>
+
+    <span class="pcard-purpose">{{ p.get_purpose_display }}</span>
+  </div>
+
+  <div class="pcard-body">
+    <div class="pcard-price">{{ p.price|floatformat:0|intcomma }} {{ p.currency }}{% if p.purpose == 'rent' and p.rent_period %}<span class="pcard-period"> / {{ p.rent_period }}</span>{% endif %}</div>
+    {% if p.is_hot_deal %}<div class="pcard-was">Similar nearby: <del>{{ p.market_price|floatformat:0|intcomma }} {{ p.currency }}</del></div>{% endif %}
+    <div class="pcard-specs">
+      {% if p.is_land %}{{ p.get_property_type_display }}{% if p.size_sqm %} · {{ p.size_sqm|intcomma }} m²{% endif %}
+      {% elif p.property_type == 'commercial' %}Commercial{% if p.size_sqm %} · {{ p.size_sqm|intcomma }} m²{% endif %}{% if p.parking_spaces %} · {{ p.parking_spaces }} Parking{% endif %}
+      {% else %}{{ p.bedrooms }} Bed{{ p.bedrooms|pluralize }} · {{ p.bathrooms }} Bath{{ p.bathrooms|pluralize }}{% if p.size_sqm %} · {{ p.size_sqm|intcomma }} m²{% endif %}{% endif %}
+    </div>
+    <div class="pcard-loc"><i class="fa-solid fa-location-dot"></i>{{ p.sector|default:p.district|default:"Rwanda" }}</div>
+    <a href="{{ p.get_absolute_url }}" class="stretched-link pcard-link"><span class="visually-hidden">{{ p.title }}</span></a>
+  </div>
+</article>

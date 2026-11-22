@@ -1,0 +1,37 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Appointments{% endblock %}
+{% block content %}
+<div class="dash-card">
+  <div class="card-head">
+    <form method="get" class="d-flex gap-2 flex-wrap">
+      <select name="when" class="form-select" onchange="this.form.submit()">
+        <option value="upcoming" {% if when == 'upcoming' %}selected{% endif %}>Upcoming</option>
+        <option value="past" {% if when == 'past' %}selected{% endif %}>Past</option>
+        <option value="all" {% if when == 'all' %}selected{% endif %}>All</option>
+      </select>
+      <select name="status" class="form-select" onchange="this.form.submit()">
+        <option value="">Any status</option>
+        {% for v, l in statuses %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+    </form>
+    <a href="{% url 'dashboard:export' 'appointments' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-file-csv me-1"></i>Export</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-tp table-hover">
+      <thead><tr><th>Date &amp; time</th><th>Client</th><th>Property</th><th>Agent</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for a in page_obj %}
+        <tr onclick="location='{% url 'dashboard:appointment_detail' a.pk %}'" style="cursor:pointer">
+          <td class="fw-semibold text-nowrap">{{ a.scheduled_for|date:"D d M Y, H:i" }}</td>
+          <td>{{ a.name }}<div class="small text-muted">{{ a.phone }}</div></td>
+          <td class="small">{{ a.property.title|truncatechars:35 }}</td>
+          <td class="small">{{ a.agent|default:"Unassigned" }}</td>
+          <td><span class="status-pill st-{{ a.status }}">{{ a.get_status_display }}</span></td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-muted py-5">No appointments.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

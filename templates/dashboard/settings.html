@@ -1,0 +1,48 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="dash-card"><div class="card-head"><h6>Website settings</h6></div><div class="card-body-tp">
+      <form method="post">{% csrf_token %}
+        {% include "partials/form_fields.html" %}
+        <button class="btn btn-primary mt-3" name="save_site">Save settings</button>
+      </form>
+    </div></div>
+
+    <div class="dash-card mt-3"><div class="card-head"><h6><i class="fa-solid fa-headset me-2 text-green"></i>Support channels</h6></div>
+      <div class="card-body-tp">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <a class="btn btn-success" target="_blank" rel="noopener" href="https://wa.me/{{ site.whatsapp }}?text={{ 'Test from Theo Property dashboard'|urlencode }}"><i class="fa-brands fa-whatsapp me-1"></i>Test WhatsApp link ({{ site.whatsapp_display }})</a>
+          <form method="post" action="{% url 'dashboard:test_email' %}">{% csrf_token %}
+            <button class="btn btn-outline-primary"><i class="fa-regular fa-envelope me-1"></i>Send test email to {{ site.email }}</button>
+          </form>
+        </div>
+        {% if email_test_mode %}
+          <div class="alert alert-warning small mb-0"><strong>Email is in test mode.</strong> Messages are printed in the server
+            terminal instead of being sent. Add your Gmail App Password as <code>EMAIL_HOST_PASSWORD</code> in the <code>.env</code> file and restart the server.</div>
+        {% else %}
+          <div class="alert alert-success small mb-0">Email sending is on (from {{ email_from }}).</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="dash-card"><div class="card-head"><h6>Property categories</h6></div>
+      <table class="table table-tp"><tbody>
+        {% for c in categories %}
+        <tr><td><i class="fa-solid {{ c.icon }} text-green me-2"></i>{{ c.name }}</td><td class="small text-muted">{{ c.n }} listings</td>
+          <td class="text-end"><form method="post" action="{% url 'dashboard:category_delete' c.pk %}" data-confirm="Delete category {{ c.name }}? Properties keep their data.">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="fa-regular fa-trash-can"></i></button></form></td></tr>
+        {% empty %}<tr><td class="text-muted">No categories.</td></tr>{% endfor %}
+      </tbody></table>
+      <div class="card-body-tp border-top">
+        <form method="post">{% csrf_token %}
+          {% include "partials/form_fields.html" with form=cat_form col="col-12" %}
+          <button class="btn btn-outline-primary mt-3" name="save_category" value="1">Add category</button>
+        </form>
+        <div class="form-text">Icon uses Font Awesome names, e.g. <code>fa-house</code>, <code>fa-building</code>, <code>fa-tree</code>.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

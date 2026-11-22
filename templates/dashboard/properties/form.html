@@ -1,0 +1,226 @@
+{% extends "dashboard/base.html" %}
+{% block back_url %}{% url 'dashboard:properties' %}{% endblock %}
+{% block page_title %}{% if is_new %}Add property{% else %}Edit {{ property.reference }}{% endif %}{% endblock %}
+{% block content %}
+{% if property %}
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  <span class="status-pill st-{{ property.approval_status }}">{{ property.get_approval_status_display }}</span>
+  {% if property.source == 'website' %}<span class="badge bg-green-soft text-green">Owner submission</span>{% endif %}
+  <span class="small text-muted">Agent: {{ property.agent|default:"not assigned yet" }}</span>
+  {% if property.deal_percent is not None %}
+    {% if property.is_hot_deal %}<span class="badge badge-hot"><i class="fa-solid fa-fire"></i> Hot deal · {{ property.deal_percent }}% below market</span>
+    {% elif property.deal_percent < 0 %}<span class="small text-muted" title="Typical price of similar listings nearby">Priced {{ property.deal_percent|stringformat:"d"|cut:"-" }}% above market (~{{ property.market_price|floatformat:0 }} {{ property.currency }})</span>
+    {% else %}<span class="small text-muted" title="Typical price of similar listings nearby">Market price ~{{ property.market_price|floatformat:0 }} {{ property.currency }}</span>{% endif %}
+  {% endif %}
+  {% if property.rejection_reason %}<span class="small text-danger">Reason: {{ property.rejection_reason }}</span>{% endif %}
+  <div class="ms-auto d-flex flex-wrap gap-2">
+    {% if property.agent == user or user.is_admin_role and property.agent %}
+      <form method="post" action="{% url 'dashboard:property_release' property.pk %}" data-confirm="Unassign the agent? An administrator will give it to another agent.">{% csrf_token %}<button class="btn btn-sm btn-light">Release</button></form>
+    {% endif %}
+    {% if can_publish %}
+      {% if property.approval_status != 'approved' %}
+        <form method="post" action="{% url 'dashboard:property_status' property.pk 'approved' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-success"><i class="fa-solid fa-globe me-1"></i>Publish on website</button></form>
+      {% else %}
+        <form method="post" action="{% url 'dashboard:property_status' property.pk 'inactive' %}" data-confirm="Take this listing offline?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-outline-secondary">Take offline</button></form>
+      {% endif %}
+    {% elif property.approval_status == 'pending' and property.agent == user %}
+      <span class="small text-muted align-self-center">An administrator will publish it after review.</span>
+    {% endif %}
+    {% if property.approval_status == 'approved' %}{% include "dashboard/properties/_taken_button.html" with p=property next=request.path %}{% endif %}
+    <a href="{% url 'dashboard:property_share' property.pk %}" class="btn btn-sm btn-primary"><i class="fa-solid fa-share-nodes me-1"></i>Share kit</a>
+    <a href="{{ property.get_absolute_url }}" target="_blank" class="btn btn-sm btn-light"><i class="fa-regular fa-eye me-1"></i>Preview</a>
+    {% if user.is_admin_role %}<a href="{% url 'dashboard:property_review' property.pk %}" class="btn btn-sm btn-outline-primary">Review</a>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" id="propertyForm" novalidate>{% csrf_token %}
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+  {% if form.errors %}
+  <div class="alert alert-danger d-flex gap-2" role="alert">
+    <i class="fa-solid fa-circle-exclamation mt-1"></i>
+    <div><strong>The property was not saved.</strong> Fix the fields marked in red below.
+      {% if form.non_field_errors %}<div>{{ form.non_field_errors|join:" " }}</div>{% endif %}</div>
+  </div>
+  {% endif %}
+
+  <div class="form-legend mb-3"><span class="req">*</span> required · fields that don't apply to the chosen type are hidden automatically</div>
+
+  <div class="row g-3">
+    <div class="col-xl-8 d-grid gap-3 align-content-start">
+
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">1</span>Type of property <span class="req">*</span></h6></div>
+        <div class="card-body-tp">
+          <div class="choice-grid mb-3" role="radiogroup" aria-label="Type of property">
+            {% for radio in form.property_type %}
+              <label class="choice-btn">{{ radio.tag }}<span><i class="fa-solid {% with v=radio.data.value %}{% if v == 'house' or v == 'villa' %}fa-house{% elif v == 'apartment' %}fa-building{% elif v == 'plot' %}fa-vector-square{% elif v == 'land' %}fa-mountain-sun{% else %}fa-shop{% endif %}{% endwith %}"></i>{{ radio.choice_label }}</span></label>
+            {% endfor %}
+          </div>
+          {% for error in form.property_type.errors %}<div class="invalid-msg mb-2">{{ error }}</div>{% endfor %}
+          <div class="choice-grid choice-grid-2" role="radiogroup" aria-label="Sale or rent">
+            {% for radio in form.purpose %}
+              <label class="choice-btn">{{ radio.tag }}<span><i class="fa-solid {% if radio.data.value == 'sale' %}fa-tag{% else %}fa-key{% endif %}"></i>{{ radio.choice_label }}</span></label>
+            {% endfor %}
+          </div>
+          {% for error in form.purpose.errors %}<div class="invalid-msg mt-2">{{ error }}</div>{% endfor %}
+        </div>
+      </section>
+
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">2</span>Title &amp; price</h6></div>
+        <div class="card-body-tp"><div class="row g-3">
+          {% include "dashboard/properties/_field.html" with field=form.title col="col-12" %}
+          {% include "dashboard/properties/_field.html" with field=form.price col="col-md-5" %}
+          {% include "dashboard/properties/_field.html" with field=form.currency col="col-md-3" %}
+          {% include "dashboard/properties/_field.html" with field=form.rent_period col="col-md-4" show_purpose="rent" required=True %}
+          {% include "dashboard/properties/_field.html" with field=form.description col="col-12" %}
+        </div></div>
+      </section>
+
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">3</span>Location</h6></div>
+        <div class="card-body-tp"><div class="row g-3">
+          {% include "dashboard/properties/_field.html" with field=form.sector col="col-md-5" %}
+          {% include "dashboard/properties/_field.html" with field=form.address col="col-md-7" %}
+        </div></div>
+      </section>
+
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">4</span>Features</h6></div>
+        <div class="card-body-tp"><div class="row g-3">
+          {% include "dashboard/properties/_field.html" with field=form.bedrooms col="col-6 col-md-3" show_for="house apartment villa" required=True %}
+          {% include "dashboard/properties/_field.html" with field=form.bathrooms col="col-6 col-md-3" show_for="house apartment villa commercial office" required=True %}
+          {% include "dashboard/properties/_field.html" with field=form.parking_spaces col="col-6 col-md-3" show_for="house apartment villa commercial office" %}
+          {% include "dashboard/properties/_field.html" with field=form.size_sqm col="col-6 col-md-3" %}
+          {% include "dashboard/properties/_field.html" with field=form.furnished col="col-md-6" show_for="house apartment villa" %}
+          {% if form.availability %}{% include "dashboard/properties/_field.html" with field=form.availability col="col-md-6" %}{% endif %}
+          <div class="col-12">
+            <label class="form-label tp-label">Amenities <span class="opt">optional</span></label>
+            <div class="chip-group">
+              {% for cb in form.amenity_choices %}<label class="chip">{{ cb.tag }}<span>{{ cb.choice_label }}</span></label>{% endfor %}
+            </div>
+          </div>
+          {% include "dashboard/properties/_field.html" with field=form.other_amenities col="col-12" %}
+        </div></div>
+      </section>
+    </div>
+
+    <div class="col-xl-4 d-grid gap-3 align-content-start">
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">5</span>Photos {% if not property or not property.images.exists %}<span class="req">*</span>{% endif %}</h6>
+          {% if property %}<span class="small text-muted">{{ property.images.count }} uploaded</span>{% endif %}</div>
+        <div class="card-body-tp">
+          {% include "dashboard/properties/_field.html" with field=form.new_images col="" %}
+          <div class="row g-2 mt-2" id="upload-preview"></div>
+          {% if property %}
+          <div class="row g-2 mt-2">
+            {% for img in property.images.all %}
+            <div class="col-6 img-manage">
+              <img src="{{ img.image.url }}" alt="Photo {{ forloop.counter }}">
+              {% if img.is_cover %}<span class="badge badge-featured position-absolute top-0 start-0 m-2">Cover</span>{% endif %}
+              <div class="actions">
+                {% if not img.is_cover %}<button form="cover-{{ img.pk }}" class="btn btn-sm btn-light" title="Make cover"><i class="fa-solid fa-star"></i><span class="visually-hidden">Make cover</span></button>{% else %}<span></span>{% endif %}
+                <button form="del-{{ img.pk }}" class="btn btn-sm btn-danger" title="Delete photo"><i class="fa-regular fa-trash-can"></i><span class="visually-hidden">Delete photo</span></button>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="dash-card form-section">
+        <div class="card-head"><h6><span class="step">6</span>Owner <span class="badge bg-light text-dark border ms-1">private</span></h6>
+          {% if property.owner_phone %}<a href="https://wa.me/{{ property.owner_phone|cut:'+'|cut:' ' }}" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="WhatsApp owner"><i class="fa-brands fa-whatsapp"></i></a>{% endif %}</div>
+        <div class="card-body-tp"><div class="row g-3">
+          {% if form.is_owner_submission %}
+          <p class="small mb-0"><i class="fa-solid fa-user-check me-1 text-success"></i>Submitted by the owner on the website. Their name and contacts are already saved, no need to add them.</p>
+          {% else %}
+          {% include "dashboard/properties/_field.html" with field=form.owner_name col="col-12" %}
+          {% include "dashboard/properties/_field.html" with field=form.owner_phone col="col-12" %}
+          {% include "dashboard/properties/_field.html" with field=form.owner_email col="col-12" %}
+          {% endif %}
+          {% if form.agent %}{% include "dashboard/properties/_field.html" with field=form.agent col="col-12" %}{% endif %}
+          <p class="small text-muted mb-0"><i class="fa-solid fa-lock me-1"></i>Never shown on the public website.</p>
+        </div></div>
+      </section>
+
+      <section class="dash-card form-section d-none d-xl-block">
+        <div class="card-head"><h6>Ready to publish?</h6></div>
+        <ul class="checklist card-body-tp mb-0" id="checklist">
+          <li data-check="type">Type and sale/rent chosen</li>
+          <li data-check="title">Title and price</li>
+          <li data-check="location">Sector</li>
+          <li data-check="description">Description</li>
+          <li data-check="photos">At least one photo</li>
+          {% if not form.is_owner_submission %}<li data-check="owner">Owner name and phone</li>{% endif %}
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <span class="small text-muted d-none d-md-inline">
+      {% if is_new and user.is_agent and not user.agent_profile.can_publish_directly %}An administrator reviews new listings before they go live.
+      {% elif is_new %}The listing goes live as soon as you save.{% else %}Last updated {{ property.updated_at|date:"d M Y H:i" }}{% endif %}
+    </span>
+    <div class="ms-auto d-flex gap-2">
+      <a href="{% url 'dashboard:properties' %}" class="btn btn-light">Cancel</a>
+      <button class="btn btn-primary px-4"><i class="fa-regular fa-floppy-disk me-1"></i>{% if is_new %}Save property{% else %}Save changes{% endif %}</button>
+    </div>
+  </div>
+</form>
+
+{% if property %}{% for img in property.images.all %}
+  <form id="cover-{{ img.pk }}" method="post" action="{% url 'dashboard:image_cover' img.pk %}">{% csrf_token %}</form>
+  <form id="del-{{ img.pk }}" method="post" action="{% url 'dashboard:image_delete' img.pk %}" data-confirm="Delete this photo?">{% csrf_token %}</form>
+{% endfor %}{% endif %}
+{{ property.images.count|default:0|json_script:"existing-photos" }}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  const form = document.getElementById("propertyForm");
+  const val = name => { const el = form.querySelector(`[name="${name}"]:checked`) || form.querySelector(`[name="${name}"]`); return el ? el.value.trim() : ""; };
+  const existingPhotos = JSON.parse(document.getElementById("existing-photos").textContent) || 0;
+
+  // Show only the fields that apply to the chosen type / purpose
+  function applyVisibility() {
+    const type = val("property_type"), purpose = val("purpose");
+    form.querySelectorAll("[data-show-for]").forEach(el => {
+      el.hidden = !!type && !el.dataset.showFor.split(" ").includes(type);
+    });
+    form.querySelectorAll("[data-show-purpose]").forEach(el => { el.hidden = purpose !== el.dataset.showPurpose; });
+    const sizeLabel = form.querySelector('label[for="id_size_sqm"]');
+    if (sizeLabel) {
+      const landish = type === "plot" || type === "land";
+      sizeLabel.innerHTML = 'Size (m²) ' + (landish ? '<span class="req">*</span>' : '<span class="opt">optional</span>');
+    }
+  }
+
+  // Live checklist so staff can see what's still missing
+  function updateChecklist() {
+    const photos = existingPhotos + (form.querySelector('[name="new_images"]').files || []).length;
+    const ok = {
+      type: val("property_type") && val("purpose"),
+      title: val("title") && val("price"),
+      location: val("sector"),
+      description: val("description"),
+      photos: photos > 0,
+      owner: val("owner_name") && val("owner_phone"),
+    };
+    document.querySelectorAll("#checklist [data-check]").forEach(li => li.classList.toggle("done", !!ok[li.dataset.check]));
+  }
+
+  form.addEventListener("change", () => { applyVisibility(); updateChecklist(); });
+  form.addEventListener("input", updateChecklist);
+  applyVisibility(); updateChecklist();
+
+  // Jump to the first error after a failed save
+  const firstError = form.querySelector(".is-invalid, .invalid-msg");
+  if (firstError) firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{# Quick account actions. `m` = the user; `next` = where to come back to. #}
+{% if m.can_manage or can_manage %}
+<div class="d-flex flex-wrap gap-1 {{ align|default:'justify-content-end' }}">
+  {% if m.is_active %}
+  <form method="post" action="{% url 'dashboard:user_action' m.pk 'deactivate' %}" data-confirm="Deactivate {{ m }}? They will not be able to sign in.">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-sm btn-outline-danger" title="Deactivate"><i class="fa-solid fa-user-slash me-1"></i>Deactivate</button></form>
+  {% else %}
+  <form method="post" action="{% url 'dashboard:user_action' m.pk 'activate' %}">{% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-sm btn-outline-success" title="Activate"><i class="fa-solid fa-user-check me-1"></i>Activate</button></form>
+  {% endif %}
+  {% if user.is_superuser %}
+    {% if m.role == 'admin' %}
+    <form method="post" action="{% url 'dashboard:user_action' m.pk 'demote' %}" data-confirm="Make {{ m }} an agent? They lose administrator rights.">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-sm btn-outline-secondary" title="Make agent"><i class="fa-solid fa-arrow-down me-1"></i>Make agent</button></form>
+    {% else %}
+    <form method="post" action="{% url 'dashboard:user_action' m.pk 'promote' %}" data-confirm="Make {{ m }} an administrator? They will be able to manage listings, agents and settings.">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-sm btn-outline-primary" title="Promote to administrator"><i class="fa-solid fa-arrow-up me-1"></i>Promote to admin</button></form>
+    {% endif %}
+  {% endif %}
+  <a href="{% url 'dashboard:user_set_password' m.pk %}" class="btn btn-sm btn-light" title="Set a new initial password"><i class="fa-solid fa-key me-1"></i>Password</a>
+</div>
+{% endif %}

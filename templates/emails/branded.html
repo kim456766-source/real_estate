@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ heading }}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef3f8;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2933;">
+  {# Hidden preview text: what email apps show next to the subject #}
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{% if preheader %}{{ preheader }}{% else %}{{ intro }}{% endif %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f8;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(14,47,82,.10);">
+
+        {# Header #}
+        <tr><td style="background:#0e2f52;background:linear-gradient(135deg,#0e2f52 0%,#0080ff 100%);padding:22px 28px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-.2px;">
+              {% if logo_url %}<img src="{{ logo_url }}" alt="" height="34" style="vertical-align:middle;background:#fff;border-radius:8px;padding:3px 6px;margin-right:10px;">{% endif %}{{ site_name }}
+            </td>
+            {% if category %}<td align="right"><span style="display:inline-block;background:rgba(255,255,255,.18);color:#ffffff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border-radius:999px;">{{ category }}</span></td>{% endif %}
+          </tr></table>
+        </td></tr>
+        <tr><td style="height:5px;background:#f5c518;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+        {# Body #}
+        <tr><td style="padding:30px 28px 8px;">
+          <h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;color:#0e2f52;">{{ heading }}</h1>
+          {% if greeting_name %}<p style="margin:0 0 12px;font-size:16px;">Hello {{ greeting_name }},</p>{% endif %}
+          {% if intro %}<p style="margin:0 0 16px;font-size:16px;line-height:1.55;font-weight:600;color:#243b53;">{{ intro }}</p>{% endif %}
+          {% if body %}<div style="margin:0 0 18px;font-size:15px;line-height:1.65;color:#334e68;">{{ body|linebreaksbr|urlize }}</div>{% endif %}
+
+          {% if quote %}
+          <div style="margin:0 0 20px;padding:14px 16px;background:#f4f8fd;border-left:4px solid #0080ff;border-radius:8px;font-size:15px;line-height:1.6;color:#243b53;">
+            {% if quote_label %}<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5f7a95;margin-bottom:6px;">{{ quote_label }}</div>{% endif %}
+            {{ quote|linebreaksbr }}
+          </div>
+          {% endif %}
+
+          {% if details %}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;border:1px solid #dce6f1;border-radius:12px;border-collapse:separate;overflow:hidden;">
+            {% for label, value in details %}
+            <tr>
+              <td style="padding:11px 14px;background:#f8fbff;font-size:13px;font-weight:700;color:#5f7a95;width:36%;{% if not forloop.last %}border-bottom:1px solid #e6eef7;{% endif %}">{{ label }}</td>
+              <td style="padding:11px 14px;font-size:15px;color:#102a43;{% if not forloop.last %}border-bottom:1px solid #e6eef7;{% endif %}">{{ value }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+          {% endif %}
+
+          {% if button_url %}
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 22px;"><tr>
+            <td style="border-radius:12px;background:#0080ff;">
+              <a href="{{ button_url }}" style="display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:12px;">{{ button_label|default:"Open" }}</a>
+            </td></tr></table>
+          <p style="margin:0 0 18px;font-size:12px;color:#7b8fa3;">If the button doesn't work, copy this link into your browser:<br><a href="{{ button_url }}" style="color:#0b5ed7;word-break:break-all;">{{ button_url }}</a></p>
+          {% endif %}
+
+          {% if note %}
+          <div style="margin:0 0 20px;padding:12px 14px;background:#fff8e1;border:1px solid #f5d77a;border-radius:10px;font-size:14px;line-height:1.55;color:#5c4400;">{{ note|linebreaksbr }}</div>
+          {% endif %}
+        </td></tr>
+
+        {# Footer #}
+        <tr><td style="padding:18px 28px 24px;border-top:1px solid #e6eef7;background:#fafcff;">
+          {% if reason %}<p style="margin:0 0 8px;font-size:12px;color:#7b8fa3;">{{ reason }}</p>{% endif %}
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#7b8fa3;">
+            <strong style="color:#5f7a95;">{{ site_name }}</strong> · Real estate in Rwanda<br>
+            {% if support_phone %}Questions? Call or WhatsApp us on {{ support_phone }}{% endif %}
+            {% if site_url %} · <a href="{{ site_url }}" style="color:#0b5ed7;">{{ site_url_display }}</a>{% endif %}
+          </p>
+          <p style="margin:10px 0 0;font-size:11px;letter-spacing:.06em;font-weight:700;color:#5f7a95;text-align:center;">DEVELOPED BY Elyse!!</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

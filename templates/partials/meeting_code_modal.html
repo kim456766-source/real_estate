@@ -1,0 +1,43 @@
+{# One-time meeting code, shown like an OTP right after a client sends a message. Never shown again. #}
+<div class="modal fade" id="meetingCodeModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false"
+     aria-labelledby="meetingCodeTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content text-center p-4 border-0 rounded-4">
+      <div class="otp-icon mx-auto mb-3"><i class="fa-solid fa-shield-halved"></i></div>
+      <h5 class="fw-bold mb-1" id="meetingCodeTitle">Your meeting code</h5>
+      <p class="small text-muted mb-3">You'll need it to open this chat in <strong>Agent replies</strong> later or on another device, and to prove to {{ new_meeting_code.agent }} that it's you when you meet. It's shown only once.</p>
+      <div class="otp-boxes mb-3" aria-label="Code {{ new_meeting_code.code }}">
+        {% for ch in new_meeting_code.code %}<span>{{ ch }}</span>{% endfor %}
+      </div>
+      <button type="button" class="btn btn-primary w-100" id="copyMeetingCode" data-code="{{ new_meeting_code.code }}">
+        <i class="fa-regular fa-copy me-1"></i>Copy code</button>
+      <button type="button" class="btn btn-link btn-sm text-muted mt-1" data-bs-dismiss="modal">I've written it down</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const el = document.getElementById("meetingCodeModal");
+  const modal = bootstrap.Modal.getOrCreateInstance(el);
+  const btn = document.getElementById("copyMeetingCode");
+  async function copy(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch (e) {  // older browsers / non-https
+      const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+      const ok = document.execCommand("copy"); t.remove(); return ok;
+    }
+  }
+  btn.addEventListener("click", async function () {
+    if (await copy(btn.dataset.code)) {
+      btn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied';
+      btn.classList.replace("btn-primary", "btn-success");
+      setTimeout(() => modal.hide(), 1200);
+    } else {
+      btn.textContent = "Couldn't copy, please write it down";
+    }
+  });
+  // Once closed, wipe the code from the page so it is gone for good
+  el.addEventListener("hidden.bs.modal", () => el.remove());
+  modal.show();
+})();
+</script>

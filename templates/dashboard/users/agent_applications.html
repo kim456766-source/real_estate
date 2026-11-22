@@ -1,0 +1,77 @@
+{% extends "dashboard/base.html" %}
+{% block page_title %}Agent applications{% endblock %}
+{% block content %}
+<p class="text-muted small mb-3">Agents who registered themselves. Their accounts stay locked until you approve them. Only the super admin can approve or reject.</p>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for value, label in statuses %}
+    <a href="?status={{ value }}" class="btn btn-sm {% if status == value %}btn-primary{% else %}btn-light border{% endif %}">
+      {{ label }} <span class="badge {% if status == value %}bg-light text-dark{% else %}bg-secondary{% endif %} ms-1">{% for k, n in counts.items %}{% if k == value %}{{ n }}{% endif %}{% endfor %}{% if value not in counts %}0{% endif %}</span>
+    </a>
+  {% endfor %}
+</div>
+
+<div class="d-grid gap-3">
+  {% for app in page_obj %}
+  {% with a=app.user %}
+  <div class="dash-card">
+    <div class="card-head">
+      <div>
+        <h6>{{ a.get_full_name|default:a.username }} <span class="status-pill st-{% if app.application_status == 'approved' %}approved{% elif app.application_status == 'rejected' %}rejected{% else %}pending{% endif %} ms-2">{{ app.get_application_status_display }}</span></h6>
+        <div class="small text-muted">Applied {{ app.applied_at|date:"d M Y, H:i" }} · username <code>{{ a.username }}</code></div>
+      </div>
+      <div class="d-flex gap-2">
+        {% if a.phone %}
+          <a href="tel:{{ a.phone|cut:' ' }}" class="btn btn-sm btn-light border" title="Call"><i class="fa-solid fa-phone"></i><span class="visually-hidden">Call</span></a>
+          <a href="https://wa.me/{{ a.phone|cut:'+'|cut:' ' }}" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="WhatsApp"><i class="fa-brands fa-whatsapp"></i><span class="visually-hidden">WhatsApp</span></a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body-tp">
+      <div class="row g-3 small">
+        <div class="col-md-6">
+          <dl class="row mb-0">
+            <dt class="col-5">Phone</dt><dd class="col-7">{{ a.phone|default:"–" }}</dd>
+            <dt class="col-5">Email</dt><dd class="col-7">{{ a.email }}</dd>
+            <dt class="col-5">Agency</dt><dd class="col-7">{{ app.agency_name|default:"–" }}</dd>
+            <dt class="col-5">Licence no.</dt><dd class="col-7">{{ app.license_number|default:"–" }}</dd>
+            <dt class="col-5">Experience</dt><dd class="col-7">{{ app.years_experience }} year{{ app.years_experience|pluralize }}</dd>
+          </dl>
+        </div>
+        <div class="col-md-6">
+          <div class="fw-semibold mb-1">About them</div>
+          <div class="bg-light-tp rounded p-2" style="white-space: pre-line">{{ app.application_note|default:"(nothing written)" }}</div>
+          {% if app.reviewed_at %}<div class="text-muted mt-2">Reviewed by {{ app.reviewed_by|default:"–" }} on {{ app.reviewed_at|date:"d M Y" }}{% if app.rejection_reason %} · Reason: {{ app.rejection_reason }}{% endif %}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 align-items-end mt-3 pt-3 border-top">
+        {% if app.application_status != 'approved' %}
+        <form method="post" action="{% url 'dashboard:agent_application_decide' app.pk 'approve' %}" data-confirm="Approve {{ a.get_full_name|default:a.username }} as an agent? They will be able to log in.">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button class="btn btn-success"><i class="fa-solid fa-check me-1"></i>Approve</button>
+        </form>
+        {% endif %}
+        {% if app.application_status != 'rejected' %}
+        <form method="post" action="{% url 'dashboard:agent_application_decide' app.pk 'reject' %}" class="d-flex flex-wrap gap-2 align-items-end flex-grow-1"
+              data-confirm="Reject this application?{% if app.application_status == 'approved' %} The agent will no longer be able to log in.{% endif %}">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div class="flex-grow-1" style="min-width:220px">
+            <label class="form-label small mb-1" for="reason-{{ app.pk }}">Reason (optional, shown to the applicant)</label>
+            <input type="text" name="rejection_reason" id="reason-{{ app.pk }}" maxlength="255" class="form-control" placeholder="e.g. Licence number could not be verified">
+          </div>
+          <button class="btn btn-outline-danger"><i class="fa-solid fa-xmark me-1"></i>{% if app.application_status == 'approved' %}Revoke{% else %}Reject{% endif %}</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  <div class="dash-card"><div class="card-body-tp text-center text-muted py-5">
+    <i class="fa-solid fa-inbox fa-2x mb-2 d-block"></i>No {{ status }} applications.
+  </div></div>
+  {% endfor %}
+</div>
+{% include "partials/pagination.html" %}
+{% endblock %}

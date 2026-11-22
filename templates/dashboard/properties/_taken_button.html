@@ -1,0 +1,12 @@
+{# "Mark as sold / rented" or "Available again". `p` = property, `next` = return URL, `small` = icon-only. #}
+{% if p.is_taken %}
+<form method="post" action="{% url 'dashboard:property_availability' p.pk 'available' %}" class="d-inline"
+      data-confirm="Put {{ p.reference }} back on the website as available?">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-sm btn-outline-success" title="Available again"><i class="fa-solid fa-rotate-left{% if not small %} me-1{% endif %}"></i>{% if not small %}Available again{% endif %}</button></form>
+{% else %}
+<form method="post" action="{% url 'dashboard:property_availability' p.pk p.taken_status %}" class="d-inline"
+      data-confirm="Mark {{ p.reference }} as {% if p.taken_status == 'rented' %}rented{% else %}sold{% endif %}? It will be hidden from the website, clients can't ask about it any more, and open conversations are closed with a short note.">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-sm btn-dark" title="Mark as {% if p.taken_status == 'rented' %}rented{% else %}sold{% endif %}"><i class="fa-solid fa-handshake{% if not small %} me-1{% endif %}"></i>{% if not small %}Mark as {% if p.taken_status == 'rented' %}rented{% else %}sold{% endif %}{% endif %}</button></form>
+{% endif %}

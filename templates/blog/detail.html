@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block back_url %}{% url 'blog:list' %}{% endblock %}
+{% block title %}{{ post.title }} | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row g-5">
+    <article class="col-lg-8">
+      <span class="badge badge-purpose mb-2">{{ post.get_category_display }}</span>
+      <h1 class="mb-2">{{ post.title }}</h1>
+      <div class="text-muted small mb-4">By {{ post.author|default:"Theo Property" }} · {{ post.created_at|date:"d M Y" }}</div>
+      {% if post.cover %}<div class="media-frame wide mb-4"><img src="{{ post.cover.url }}" alt="{{ post.title }}"></div>{% endif %}
+      <div class="fs-6 lh-lg">{{ post.body|linebreaks }}</div>
+    </article>
+    <aside class="col-lg-4">
+      <div class="side-card">
+        <h6 class="fw-bold mb-3">Recent articles</h6>
+        {% for r in recent %}<a href="{{ r.get_absolute_url }}" class="d-block mb-2">{{ r.title }}</a>{% empty %}<p class="text-muted small mb-0">No other articles.</p>{% endfor %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

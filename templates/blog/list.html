@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Blog &amp; news | {{ site.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header"><div class="container"><div class="eyebrow">Blog</div><h1>Real estate news &amp; advice</h1></div></div>
+<div class="container py-5">
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{% url 'blog:list' %}" class="btn btn-sm {% if not current %}btn-primary{% else %}btn-outline-primary{% endif %}">All</a>
+    {% for value, label in categories %}
+      <a href="?category={{ value }}" class="btn btn-sm {% if current == value %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="row g-4">
+    {% for post in page_obj %}{% include "blog/_card.html" %}
+    {% empty %}<p class="text-muted">No articles yet.</p>{% endfor %}
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}

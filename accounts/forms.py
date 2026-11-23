@@ -341,3 +341,25 @@ class UserRoleForm(BootstrapFormMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         if actor is not None and not actor.is_superuser:  # only the super admin makes administrators
             self.fields["role"].choices = [c for c in self.fields["role"].choices if c[0] != User.Role.ADMIN]
+
+
+class EmailCodeForm(BootstrapFormMixin, forms.Form):
+    """The 6-digit code we emailed (spaces allowed: '123 456')."""
+    code = forms.CharField(label="6-digit code", max_length=12, widget=forms.TextInput(attrs={
+        "inputmode": "numeric", "autocomplete": "one-time-code", "placeholder": "123456",
+        "class": "form-control form-control-lg text-center fw-bold", "style": "letter-spacing:.4em"}))
+
+    def clean_code(self):
+        code = "".join(ch for ch in self.cleaned_data["code"] if ch.isdigit())
+        if len(code) != 6:
+            raise forms.ValidationError("Enter the 6 digits from the email.")
+        return code
+
+
+class ResetRequestForm(BootstrapFormMixin, forms.Form):
+    """'Forgot password?': the email on the account; a reset code is sent there."""
+    email = forms.EmailField(label="Email on your account", widget=forms.EmailInput(attrs={
+        "placeholder": "e.g. aline@email.com", "autocomplete": "email"}))
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()

@@ -1,0 +1,22 @@
+{% extends "accounts/_auth_layout.html" %}
+{% block title %}Enter your sign-in code | {{ site.site_name }}{% endblock %}
+{% block auth_content %}
+<div class="text-center mb-3"><i class="fa-solid fa-envelope-circle-check fa-3x text-green"></i></div>
+<h3 class="mb-1 text-center">Check your email</h3>
+<p class="text-muted text-center mb-4">We sent a 6-digit code to <strong>{{ email }}</strong>.
+  Enter it to finish signing in. It expires in {{ minutes }} minutes.</p>
+<form method="post" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <label class="form-label fw-semibold small" for="{{ form.code.id_for_label }}">{{ form.code.label }}</label>
+  {{ form.code }}
+  {% for error in form.code.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+  <button class="btn btn-primary w-100 mt-3"><i class="fa-solid fa-right-to-bracket me-2"></i>Verify and sign in</button>
+</form>
+<form method="post" class="text-center mt-3">{% csrf_token %}
+  <input type="hidden" name="action" value="resend">
+  <span class="small text-muted">Didn't get it? Check Spam, or</span>
+  <button class="btn btn-link btn-sm p-0 align-baseline">send a new code</button>
+</form>
+<div class="text-center mt-2"><a class="small" href="{% url 'accounts:login' %}">Use a different account</a></div>
+<script>document.getElementById("{{ form.code.id_for_label }}").focus();</script>
+{% endblock %}

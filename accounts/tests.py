@@ -18,6 +18,7 @@ UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chr
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", LOGIN_ALERT_EMAIL=ADMIN_INBOX,
+                   LOGIN_EMAIL_CODE=False,  # these tests are about the alerts; the code step is tested in core/tests.py
                    LOGIN_ALERTS_ENABLED=True, LOGIN_ALERTS_ASYNC=False)
 class LoginAlertTests(TestCase):
     def setUp(self):

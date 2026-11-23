@@ -201,6 +201,9 @@ SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "")
 # Set it in .env (kept private); falls back to the Gmail account the site sends from.
 LOGIN_ALERT_EMAIL = os.getenv("LOGIN_ALERT_EMAIL") or EMAIL_HOST_USER
 LOGIN_ALERTS_ENABLED = env_bool("LOGIN_ALERTS_ENABLED", True)
+# Sign-in verification: after the correct password, a 6-digit code is emailed and must be entered.
+# Emergency switch: set LOGIN_EMAIL_CODE=False (e.g. on Render) if email ever stops working, so nobody is locked out.
+LOGIN_EMAIL_CODE = env_bool("LOGIN_EMAIL_CODE", True)
 # Send in the background so sign-in stays fast (but in order during `manage.py test`).
 LOGIN_ALERTS_ASYNC = env_bool("LOGIN_ALERTS_ASYNC", "test" not in sys.argv[1:2])
 

@@ -90,3 +90,27 @@ class OwnerProfile(models.Model):
 
     def __str__(self):
         return f"Owner: {self.user}"
+
+
+class EmailCode(models.Model):
+    """A one-time 6-digit code sent by email: to finish signing in, or to reset a forgotten password.
+    Only a hash of the code is stored. See accounts/email_codes.py."""
+
+    class Purpose(models.TextChoices):
+        LOGIN = "login", "Sign-in verification"
+        RESET = "reset", "Password reset"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_codes")
+    purpose = models.CharField(max_length=10, choices=Purpose.choices)
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "purpose", "created_at"])]
+
+    def __str__(self):
+        return f"{self.get_purpose_display()} code for {self.user}"

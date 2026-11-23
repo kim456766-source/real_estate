@@ -17,7 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from accounts.models import User
+from accounts.models import EmailCode, User
 from appointments.models import Appointment
 from inquiries.models import Inquiry, InquiryMessage
 from notifications.models import Notification
@@ -26,6 +26,23 @@ from properties.models import Property, PropertyImage
 
 PW = "TheoDemo#2026"
 SUBMIT_HOUSE = "/properties/submit/?type=house&purpose=sale"
+
+
+def emailed_code(kind="sign-in"):
+    """The 6-digit code from the newest '<code> is your sign-in / password reset code' email."""
+    msg = [m for m in mail.outbox if f"is your {kind} code" in m.subject][-1]
+    return re.search(r"(\d{6}) is your", msg.subject).group(1)
+
+
+def timezone_now_minus(seconds):
+    from datetime import timedelta
+    from django.utils import timezone
+    return timezone.now() - timedelta(seconds=seconds)
+
+
+def finish_sign_in(client):
+    """Step 2 of signing in: type the emailed code."""
+    return client.post(reverse("accounts:login_code"), {"code": emailed_code("sign-in")})
 
 
 def make_image(name="photo.jpg"):
@@ -186,7 +203,8 @@ class TheoPropertyTests(TestCase):
         self.assertEqual(agent.agent_profile.reviewed_by, self.admin)
         self.client.logout()
         r = self.client.post(reverse("accounts:login"), {"username": "newagent", "password": "Strong#Pass2026"})
-        self.assertRedirects(r, reverse("accounts:after_login"), fetch_redirect_response=False)
+        self.assertRedirects(r, reverse("accounts:login_code"), fetch_redirect_response=False)
+        self.assertRedirects(finish_sign_in(self.client), reverse("accounts:after_login"), fetch_redirect_response=False)
 
     def test_agent_application_rejected(self):
         self.apply_as_agent(username="badagent")
@@ -484,10 +502,114 @@ class TheoPropertyTests(TestCase):
         url = reverse("accounts:login")
         for login in (self.agent2.username, self.agent2.email, self.agent2.email.upper(), f"  {self.agent2.email} "):
             c = self.client_class()
+            EmailCode.objects.filter(user=self.agent2).delete()  # each loop is a fresh sign-in (no 1-minute wait)
             r = c.post(url, {"username": login, "password": "Agent2!Pass99"})
-            self.assertEqual(r.status_code, 302, login)
+            self.assertRedirects(r, reverse("accounts:login_code"), fetch_redirect_response=False, msg_prefix=login)
+            finish_sign_in(c)
             self.assertEqual(int(c.session["_auth_user_id"]), self.agent2.pk)
         self.assertEqual(self.client_class().post(url, {"username": self.agent2.email, "password": "nope"}).status_code, 200)
+
+    # ---------- emailed 6-digit codes: sign-in verification and password reset ----------
+    def test_sign_in_needs_emailed_code(self):
+        url = reverse("accounts:login")
+        mail.outbox.clear()
+        r = self.client.post(url, {"username": "agent", "password": PW, "next": "/dashboard/properties/"})
+        self.assertRedirects(r, reverse("accounts:login_code"), fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)            # password alone is not enough
+        code_mail = [m for m in mail.outbox if "is your sign-in code" in m.subject]
+        self.assertEqual([m.to for m in code_mail], [[self.agent.email]])
+        code = emailed_code()
+        self.assertNotIn(code, EmailCode.objects.get(user=self.agent).code_hash)  # only a hash is stored
+        page = self.client.get(reverse("accounts:login_code"))
+        self.assertContains(page, "6-digit code")
+        self.assertNotContains(page, self.agent.email)                     # address shown masked
+        wrong = "000000" if code != "000000" else "111111"
+        r = self.client.post(reverse("accounts:login_code"), {"code": wrong})
+        self.assertContains(r, "not correct")
+        self.assertNotIn("_auth_user_id", self.client.session)
+        r = self.client.post(reverse("accounts:login_code"), {"code": f"{code[:3]} {code[3:]}"})  # spaces are fine
+        self.assertRedirects(r, "/dashboard/properties/", fetch_redirect_response=False)  # ?next= is kept
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.agent.pk)
+        # the code can't be used again
+        other = self.client_class()
+        other.post(url, {"username": "agent", "password": PW})
+        self.assertContains(other.post(reverse("accounts:login_code"), {"code": code}), "not correct")
+
+    def test_sign_in_code_locks_after_wrong_tries_and_expires(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        url, code_url = reverse("accounts:login"), reverse("accounts:login_code")
+        self.client.post(url, {"username": "agent", "password": PW})
+        code = emailed_code()
+        wrong = "000000" if code != "000000" else "111111"
+        for _ in range(4):
+            self.client.post(code_url, {"code": wrong})
+        r = self.client.post(code_url, {"code": wrong})                      # 5th wrong try burns the code
+        self.assertRedirects(r, url, fetch_redirect_response=False)
+        self.assertRedirects(self.client.post(code_url, {"code": code}), url, fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)
+        # expired code
+        EmailCode.objects.filter(user=self.agent).delete()
+        self.client.post(url, {"username": "agent", "password": PW})
+        EmailCode.objects.filter(user=self.agent).update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertContains(self.client.post(code_url, {"code": emailed_code()}), "expired")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_sign_in_code_resend_is_limited(self):
+        self.client.post(reverse("accounts:login"), {"username": "agent", "password": PW})
+        sent = len(mail.outbox)
+        r = self.client.post(reverse("accounts:login_code"), {"action": "resend"}, follow=True)
+        self.assertContains(r, "We just sent a code")                       # not again within a minute
+        self.assertEqual(len(mail.outbox), sent)
+        EmailCode.objects.filter(user=self.agent).update(created_at=timezone_now_minus(120))
+        r = self.client.post(reverse("accounts:login_code"), {"action": "resend"}, follow=True)
+        self.assertContains(r, "A new code is on its way")
+        self.assertEqual(len(mail.outbox), sent + 1)
+        finish_sign_in(self.client)                                          # the newest code works
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_sign_in_code_emergency_switch(self):
+        with override_settings(LOGIN_EMAIL_CODE=False):
+            r = self.client.post(reverse("accounts:login"), {"username": "agent", "password": PW})
+        self.assertRedirects(r, reverse("accounts:after_login"), fetch_redirect_response=False)
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_sign_in_code_email_failure_is_explained(self):
+        from unittest import mock
+        with mock.patch("accounts.email_codes.send_branded", return_value=False):
+            r = self.client.post(reverse("accounts:login"), {"username": "agent", "password": PW})
+        self.assertContains(r, "email your sign-in code right now")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_password_reset_with_code(self):
+        reset, code_url = reverse("accounts:password_reset"), reverse("accounts:password_reset_code")
+        mail.outbox.clear()
+        # an unknown email gets exactly the same answer, and nothing is sent
+        r = self.client.post(reset, {"email": "nobody@example.com"})
+        self.assertRedirects(r, code_url, fetch_redirect_response=False)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertContains(self.client.post(code_url, {"code": "123456", "new_password1": "New!Pass2026x",
+                                                        "new_password2": "New!Pass2026x"}), "not correct")
+        # the real account
+        self.client.post(reset, {"email": self.agent.email.upper()})
+        self.assertEqual(mail.outbox[-1].to, [self.agent.email])
+        code = emailed_code("password reset")
+        wrong = "000000" if code != "000000" else "111111"
+        r = self.client.post(code_url, {"code": wrong, "new_password1": "New!Pass2026x", "new_password2": "New!Pass2026x"})
+        self.assertContains(r, "not correct")
+        self.agent.refresh_from_db()
+        self.assertTrue(self.agent.check_password(PW))                       # unchanged
+        r = self.client.post(code_url, {"code": code, "new_password1": "New!Pass2026x", "new_password2": "New!Pass2026x"})
+        self.assertRedirects(r, reverse("accounts:login"), fetch_redirect_response=False)
+        self.agent.refresh_from_db()
+        self.assertTrue(self.agent.check_password("New!Pass2026x"))
+        # a weak new password is refused before the code is used up
+        self.client.post(reset, {"email": self.agent.email})
+        EmailCode.objects.filter(user=self.agent).update(created_at=timezone_now_minus(120))
+        self.client.post(code_url, {"action": "resend"})
+        r = self.client.post(code_url, {"code": emailed_code("password reset"), "new_password1": "123", "new_password2": "123"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(EmailCode.objects.filter(user=self.agent, purpose="reset", used_at__isnull=True).exists())
 
     def test_new_account_email_and_password_reset_by_email(self):
         self.login(self.admin)
@@ -512,16 +634,16 @@ class TheoPropertyTests(TestCase):
             "first_name": "X", "last_name": "Y", "username": "dupe", "email": "ERIC.N@example.com",
             "phone": "", "password1": "Init!Pass2026x", "password2": "Init!Pass2026x"})
         self.assertFalse(User.objects.filter(username="dupe").exists())
-        # forgot password: a reset link goes to the account's email; choosing a password there clears "initial"
+        # forgot password: a 6-digit code goes to the account's email; choosing a password with it clears "initial"
         self.client.logout()
         mail.outbox.clear()
-        self.client.post(reverse("accounts:password_reset"), {"email": "ERIC.N@example.com"})
+        r = self.client.post(reverse("accounts:password_reset"), {"email": "ERIC.N@example.com"})
+        self.assertRedirects(r, reverse("accounts:password_reset_code"), fetch_redirect_response=False)
         self.assertEqual(len(mail.outbox), 1)
-        link = re.search(r"https?://\S+/reset/\S+/", mail.outbox[0].body).group(0)
-        path = link.split("testserver", 1)[1]
-        r = self.client.get(path, follow=True)
-        self.client.post(r.redirect_chain[-1][0] if r.redirect_chain else path,
-                         {"new_password1": "Chosen!Pass77", "new_password2": "Chosen!Pass77"})
+        self.assertEqual(mail.outbox[0].to, ["eric.n@example.com"])
+        self.client.post(reverse("accounts:password_reset_code"),
+                         {"code": emailed_code("password reset"), "new_password1": "Chosen!Pass77",
+                          "new_password2": "Chosen!Pass77"})
         eric.refresh_from_db()
         self.assertTrue(eric.check_password("Chosen!Pass77"))
         self.assertFalse(eric.must_change_password)
@@ -1222,6 +1344,8 @@ class SecurityTests(TestCase):
         self.assertNotIn("_auth_user_id", self.client.session)
         cache.clear()
         self.client.post(url, {"username": "agent", "password": PW})
+        self.assertNotIn("_auth_user_id", self.client.session)  # correct password: now the emailed code
+        finish_sign_in(self.client)
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_public_forms_are_rate_limited(self):

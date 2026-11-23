@@ -134,7 +134,8 @@ WHITENOISE_MANIFEST_STRICT = False  # a missing static file must not crash a pag
 # Upload limits (secure image uploads)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
-MAX_IMAGE_SIZE_MB = 5
+# Photos: no size limit in MB (0 = unlimited). Every photo is shrunk to 1600px JPEG before it is stored.
+MAX_IMAGE_SIZE_MB = int(os.getenv("MAX_IMAGE_SIZE_MB", "0"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -171,8 +172,14 @@ if EMAIL_HOST_PASSWORD.upper().startswith("YOUR_"):  # the placeholder from the 
     EMAIL_HOST_PASSWORD = ""
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 EMAIL_TIMEOUT = 15
+# Brevo sends over HTTPS. Use it in production: Render's free plan blocks SMTP (ports 25/465/587).
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
+if BREVO_API_KEY:
+    INSTALLED_APPS += ["anymail"]
+    ANYMAIL = {"BREVO_API_KEY": BREVO_API_KEY}
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND") or (
-    "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST_PASSWORD
+    "anymail.backends.brevo.EmailBackend" if BREVO_API_KEY
+    else "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST_PASSWORD
     else "django.core.mail.backends.console.EmailBackend")
 # Gmail only sends "from" the account you log in with.
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL") or (

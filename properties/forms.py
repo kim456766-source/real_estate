@@ -59,7 +59,7 @@ class PublicPropertyForm(BootstrapFormMixin, forms.ModelForm):
     """
 
     new_images = MultipleImageField(label="Property photos", required=True, max_files=15,
-                                    help_text="Add 1 to 15 clear photos (JPG, PNG or WEBP, max 5 MB each).")
+                                    help_text="Add 1 to 15 clear photos (JPG, PNG or WEBP, any size).")
     website = forms.CharField(required=False, widget=forms.TextInput(attrs={"autocomplete": "off", "tabindex": "-1"}))
     agree = forms.BooleanField(label="I confirm I am the owner (or authorised to sell/rent) and the details are correct.")
 
@@ -155,7 +155,7 @@ class PropertyForm(BootstrapFormMixin, forms.ModelForm):
                                                 widget=forms.CheckboxSelectMultiple, label="Amenities")
     other_amenities = forms.CharField(required=False, label="Other amenities",
                                       widget=forms.TextInput(attrs={"placeholder": "Comma separated, e.g. Rooftop terrace"}))
-    new_images = MultipleImageField(label="Add photos", help_text="JPG, PNG or WEBP, max 5 MB each. The first photo becomes the cover.")
+    new_images = MultipleImageField(label="Add photos", help_text="JPG, PNG or WEBP, any size. The first photo becomes the cover.")
 
     class Meta:
         model = Property

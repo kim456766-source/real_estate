@@ -229,9 +229,14 @@ class PropertyImage(models.Model):
     def _normalize(self):
         """Turn phone photos upright (EXIF), shrink huge ones and save as web-friendly JPEG."""
         from PIL import Image, ImageOps
+        from core.utils import MAX_JPEG_PIXELS
+        Image.MAX_IMAGE_PIXELS = MAX_JPEG_PIXELS
         try:
             self.image.seek(0)
-            img = ImageOps.exif_transpose(Image.open(self.image))
+            img = Image.open(self.image)
+            # Big phone JPEGs: decode at 1/2, 1/4 or 1/8 size straight away (uses a fraction of the memory)
+            img.draft("RGB", (self.MAX_SIDE, self.MAX_SIDE))
+            img = ImageOps.exif_transpose(img)
             img.thumbnail((self.MAX_SIDE, self.MAX_SIDE))
             if img.mode != "RGB":
                 img = img.convert("RGB")

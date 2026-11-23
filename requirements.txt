@@ -9,5 +9,6 @@ psycopg[binary]==3.3.9
 gunicorn>=23.0             # production web server
 whitenoise>=6.9            # serves CSS/JS/images from static/
 django-cloudinary-storage>=0.3.0  # property images on Cloudinary (used when CLOUDINARY_URL is set)
+django-anymail[brevo]>=13.0       # emails through Brevo's HTTPS API (used when BREVO_API_KEY is set)
 # Optional, add when needed:
 # requests                    # MTN MoMo / Airtel Money API calls

@@ -30,6 +30,8 @@ services:
       # Filled in by you on the Render dashboard (kept out of GitHub):
       - key: CLOUDINARY_URL
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
       - key: EMAIL_HOST_USER
         sync: false
       - key: EMAIL_HOST_PASSWORD

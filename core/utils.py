@@ -6,7 +6,8 @@ from .security import client_ip  # noqa: F401  (kept here for existing imports)
 
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "MPO"}  # MPO = JPEG from some phone cameras
-MAX_IMAGE_PIXELS = 40_000_000  # 40 megapixels: bigger is a "decompression bomb", not a photo
+MAX_JPEG_PIXELS = 260_000_000   # JPEG: up to 200+ MP phone photos (decoded at reduced size, see PropertyImage)
+MAX_IMAGE_PIXELS = 40_000_000   # PNG / WEBP are decoded in full, so keep these to normal photo sizes
 
 
 def validate_image_file(f):
@@ -16,10 +17,12 @@ def validate_image_file(f):
     ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise ValidationError("Only JPG, PNG and WEBP images are allowed.")
-    if f.size > settings.MAX_IMAGE_SIZE_MB * 1024 * 1024:
-        raise ValidationError(f"Image must be smaller than {settings.MAX_IMAGE_SIZE_MB} MB.")
+    limit = settings.MAX_IMAGE_SIZE_MB
+    if limit and f.size > limit * 1024 * 1024:  # 0 = no limit
+        raise ValidationError(f"Image must be smaller than {limit} MB.")
     if getattr(f, "_committed", False):  # already stored earlier; nothing new to check
         return
+    Image.MAX_IMAGE_PIXELS = MAX_JPEG_PIXELS  # Pillow's own bomb check; the per-format limit is below
     try:
         pos = f.tell() if hasattr(f, "tell") else 0
         f.seek(0)
@@ -35,7 +38,7 @@ def validate_image_file(f):
             pass
     if fmt not in ALLOWED_IMAGE_FORMATS:
         raise ValidationError("Only JPG, PNG and WEBP images are allowed.")
-    if w * h > MAX_IMAGE_PIXELS:
+    if w * h > (MAX_JPEG_PIXELS if fmt in ("JPEG", "MPO") else MAX_IMAGE_PIXELS):
         raise ValidationError("This image is too large. Please upload a normal photo.")
 
 

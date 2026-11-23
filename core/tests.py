@@ -1,4 +1,5 @@
 """End-to-end tests for Theo Property. Run: python manage.py test"""
+import os
 import re
 import shutil
 import tempfile
@@ -711,6 +712,19 @@ class TheoPropertyTests(TestCase):
         with Image.open(img.image.path) as saved:
             self.assertEqual(saved.size, (1200, 1600))
             self.assertEqual(saved.format, "JPEG")
+
+    def test_big_phone_photo_is_accepted(self):
+        """No MB limit: a >5 MB, 48-megapixel phone JPEG is accepted and stored as a 1600px JPEG."""
+        from core.utils import validate_image_file
+        noise = Image.frombytes("RGB", (1600, 1200), os.urandom(1600 * 1200 * 3)).resize((8000, 6000))
+        buf = BytesIO()
+        noise.save(buf, "JPEG", quality=95)
+        self.assertGreater(len(buf.getvalue()), 5 * 1024 * 1024)
+        upload = SimpleUploadedFile("big.jpg", buf.getvalue(), "image/jpeg")
+        validate_image_file(upload)  # no "smaller than 5 MB" error any more
+        img = PropertyImage.objects.create(property=self.prop, image=upload)
+        with Image.open(img.image.path) as saved:
+            self.assertEqual(max(saved.size), 1600)
 
     def test_session_favorites(self):
         url = reverse("favorites:toggle", args=[self.prop.pk])

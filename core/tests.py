@@ -966,6 +966,27 @@ class TheoPropertyTests(TestCase):
         for gone in ("category", "village", "year_built", "video_url", "availability", "district", "latitude", "longitude"):
             self.assertNotIn(gone, r.context["form"].fields)
 
+    def test_photo_storage_failure_shows_message_not_error_page(self):
+        """If Cloudinary refuses an upload, the form says so and nothing is half-saved."""
+        from unittest import mock
+        self.login(self.admin)
+        prop = self.prop
+        url = reverse("dashboard:property_edit", args=[prop.pk])
+        data = self.staff_data(title="Changed title", availability="available")
+        photos_before = prop.images.count()
+        with mock.patch("properties.models.PropertyImage.save", side_effect=RuntimeError("Invalid Signature")):
+            r = self.client.post(url, data)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "photos could not be uploaded")
+        prop.refresh_from_db()
+        self.assertNotEqual(prop.title, "Changed title")  # the whole save was undone
+        self.assertEqual(prop.images.count(), photos_before)
+        # adding a new listing: nothing is created
+        with mock.patch("properties.models.PropertyImage.save", side_effect=RuntimeError("Invalid Signature")):
+            r = self.client.post(reverse("dashboard:property_create"), self.staff_data(title="Never saved"))
+        self.assertContains(r, "photos could not be uploaded")
+        self.assertFalse(Property.objects.filter(title="Never saved").exists())
+
     def test_staff_form_saves_without_owner_details(self):
         self.login(self.admin)
         data = self.staff_data(title="No owner house")

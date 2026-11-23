@@ -37,7 +37,7 @@ from payments.gateways import GatewayError, GatewayNotConfigured, get_gateway
 from payments.models import Payment
 from properties.forms import CategoryForm, PropertyForm, PropertyReviewForm
 from properties.models import Category, Property, PropertyImage
-from properties.utils import save_property_images
+from properties.utils import PHOTO_UPLOAD_FAILED, PhotoUploadError, save_property_images
 
 
 from .scoping import (appointments_for, can_edit_property, can_manage_appointments, can_manage_listing, can_publish,
@@ -171,8 +171,13 @@ def property_create(request):
         auto_publish = user.is_admin_role or (
             user.is_agent and getattr(user.agent_profile, "can_publish_directly", False))
         prop.approval_status = Property.Approval.APPROVED if auto_publish else Property.Approval.PENDING
-        prop.save()
-        save_property_images(prop, form.cleaned_data["new_images"])
+        try:
+            with transaction.atomic():  # listing + photos are saved together, or not at all
+                prop.save()
+                save_property_images(prop, form.cleaned_data["new_images"])
+        except PhotoUploadError:
+            form.add_error("new_images", PHOTO_UPLOAD_FAILED)
+            return render(request, "dashboard/properties/form.html", {"form": form, "is_new": True})
         log_action(request, "property_created", prop)
         if not auto_publish:
             notify_admins("Property awaiting approval", f"{user} submitted {prop.title}.",
@@ -189,8 +194,16 @@ def property_edit(request, pk):
         raise PermissionDenied
     form = PropertyForm(request.POST or None, request.FILES or None, instance=prop, user=request.user)
     if request.method == "POST" and form.is_valid():
-        prop = form.save()
-        save_property_images(prop, form.cleaned_data["new_images"])
+        try:
+            with transaction.atomic():  # changes + new photos are saved together, or not at all
+                prop = form.save()
+                save_property_images(prop, form.cleaned_data["new_images"])
+        except PhotoUploadError:
+            form.add_error("new_images", PHOTO_UPLOAD_FAILED)
+            prop = Property.objects.get(pk=pk)  # what is really saved (the attempt was undone)
+            return render(request, "dashboard/properties/form.html", {
+                "form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop),
+                "can_manage": can_manage_listing(request.user, prop)})
         log_action(request, "property_updated", prop)
         messages.success(request, "Property updated.")
         return redirect("dashboard:property_edit", pk=prop.pk)

@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.contrib.humanize.templatetags.humanize import intcomma
+from django.db import transaction
 from django.db.models import F, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,7 +20,7 @@ from .models import Property
 from .ranking import recommended, refresh_if_stale
 from .search import MAX_QUERY, keyword_filter, words_of
 from .similar import similar_properties
-from .utils import save_property_images, same_phone
+from .utils import PHOTO_UPLOAD_FAILED, PhotoUploadError, save_property_images, same_phone
 
 # Public "category" pages are the listing page with a preset filter.
 PRESETS = {
@@ -158,8 +159,13 @@ def submit_property(request):
             prop = form.save(commit=False)
             prop.source = Property.Source.WEBSITE
             prop.approval_status = Property.Approval.PENDING
-            prop.save()
-            save_property_images(prop, form.cleaned_data["new_images"])
+            try:
+                with transaction.atomic():  # listing + photos are saved together, or not at all
+                    prop.save()
+                    save_property_images(prop, form.cleaned_data["new_images"])
+            except PhotoUploadError:
+                form.add_error("new_images", PHOTO_UPLOAD_FAILED)
+                return render(request, "properties/submit.html", ctx)
             cache.set(key, cache.get(key, 0) + 1, 3600)
 
             msg = (f"{prop.owner_name} ({prop.owner_phone}) submitted \"{prop.title}\" in {prop.location_display}. "

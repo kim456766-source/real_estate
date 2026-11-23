@@ -21,6 +21,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-change-me")
 DEBUG = env_bool("DEBUG", True)
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
+# Render sets this automatically to the site's address (e.g. theo-property.onrender.com)
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{RENDER_EXTERNAL_HOSTNAME}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -51,6 +56,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves static files in production
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -118,6 +124,12 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+# Static files are compressed and given cache-busting names by WhiteNoise.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+WHITENOISE_MANIFEST_STRICT = False  # a missing static file must not crash a page
 
 # Upload limits (secure image uploads)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
@@ -199,16 +211,14 @@ GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 SITE_WHATSAPP_NUMBER = os.getenv("SITE_WHATSAPP_NUMBER", "250789567752")
 SITE_NAME = "Theo Property"
 # The website's public address, used for buttons and links inside emails (no trailing slash).
-SITE_URL = os.getenv("SITE_URL", "http://localhost:8000").rstrip("/")
+SITE_URL = os.getenv("SITE_URL", f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER_EXTERNAL_HOSTNAME
+                     else "http://localhost:8000").rstrip("/")
 
 # Cloudinary (optional): set CLOUDINARY_URL and `pip install django-cloudinary-storage`
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "")
 if CLOUDINARY_URL:
     INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]
-    STORAGES = {
-        "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
-    }
+    STORAGES["default"] = {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"}
 
 # Mobile money (future integration - credentials come from the provider after approval)
 MTN_MOMO = {

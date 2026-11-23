@@ -101,7 +101,7 @@ class TheoPropertyTests(TestCase):
             self.assertNotIn("Submit your property", header)
             self.assertIn("Property owner?", after.split("<main>")[0])
             self.assertIn("Submit your property", after.split("<main>")[0])
-        self.assertRegex(r.content.decode(), r"style\.css\?v=\d+")
+        self.assertRegex(r.content.decode(), r"style(\.[0-9a-f]+)?\.css\?v=\d+")  # WhiteNoise may add a content hash
         # the owner bar is hidden on the submission pages themselves
         self.assertNotContains(self.client.get(reverse("properties:submit")), 'class="owner-bar"')
 

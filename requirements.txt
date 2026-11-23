@@ -5,7 +5,9 @@ pillow==13.0.0
 python-dotenv==1.2.4
 dj-database-url==3.1.2
 psycopg[binary]==3.3.9
+# Production (Render)
+gunicorn>=23.0             # production web server
+whitenoise>=6.9            # serves CSS/JS/images from static/
+django-cloudinary-storage>=0.3.0  # property images on Cloudinary (used when CLOUDINARY_URL is set)
 # Optional, add when needed:
-# django-cloudinary-storage   # property images on Cloudinary
 # requests                    # MTN MoMo / Airtel Money API calls
-# gunicorn                    # production server

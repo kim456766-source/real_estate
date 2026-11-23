@@ -50,6 +50,15 @@ def can_edit_property(user, prop):
     return user in (prop.owner, prop.created_by)
 
 
+def can_manage_listing(user, prop):
+    """Delete or lock (take offline): administrators on every listing, agents only on their own."""
+    if not user.is_authenticated:
+        return False
+    if user.is_admin_role:
+        return True
+    return user.is_agent and prop.agent_id == user.pk
+
+
 def can_publish(user, prop):
     if user.is_admin_role:
         return True

@@ -21,8 +21,10 @@
       {% if property.approval_status != 'approved' %}
         <form method="post" action="{% url 'dashboard:property_status' property.pk 'approved' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-success"><i class="fa-solid fa-globe me-1"></i>Publish on website</button></form>
       {% else %}
-        <form method="post" action="{% url 'dashboard:property_status' property.pk 'inactive' %}" data-confirm="Take this listing offline?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-outline-secondary">Take offline</button></form>
+        <form method="post" action="{% url 'dashboard:property_status' property.pk 'inactive' %}" data-confirm="Lock this listing? It will be taken off the website.">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-lock me-1"></i>Lock (take offline)</button></form>
       {% endif %}
+    {% elif can_manage and property.approval_status == 'approved' %}
+      <form method="post" action="{% url 'dashboard:property_status' property.pk 'inactive' %}" data-confirm="Lock this listing? It will be taken off the website.">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-lock me-1"></i>Lock (take offline)</button></form>
     {% elif property.approval_status == 'pending' and property.agent == user %}
       <span class="small text-muted align-self-center">An administrator will publish it after review.</span>
     {% endif %}
@@ -30,6 +32,9 @@
     <a href="{% url 'dashboard:property_share' property.pk %}" class="btn btn-sm btn-primary"><i class="fa-solid fa-share-nodes me-1"></i>Share kit</a>
     <a href="{{ property.get_absolute_url }}" target="_blank" class="btn btn-sm btn-light"><i class="fa-regular fa-eye me-1"></i>Preview</a>
     {% if user.is_admin_role %}<a href="{% url 'dashboard:property_review' property.pk %}" class="btn btn-sm btn-outline-primary">Review</a>{% endif %}
+    {% if can_manage %}
+      <form method="post" action="{% url 'dashboard:property_delete' property.pk %}" data-confirm="Delete {{ property.reference }} permanently? Its photos are deleted too.">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="fa-regular fa-trash-can me-1"></i>Delete</button></form>
+    {% endif %}
   </div>
 </div>
 {% endif %}

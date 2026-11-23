@@ -63,11 +63,14 @@
               {% if p.approval_status != 'approved' %}
               <form method="post" action="{% url 'dashboard:property_status' p.pk 'approved' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <button class="btn btn-sm btn-success" title="Publish"><i class="fa-solid fa-check"></i></button></form>
-              {% else %}
-              <form method="post" action="{% url 'dashboard:property_status' p.pk 'inactive' %}" class="d-inline" data-confirm="Deactivate this listing?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button class="btn btn-sm btn-outline-secondary" title="Deactivate"><i class="fa-solid fa-ban"></i></button></form>
               {% endif %}
-              <form method="post" action="{% url 'dashboard:property_delete' p.pk %}" class="d-inline" data-confirm="Delete {{ p.reference }} permanently?">{% csrf_token %}
+            {% endif %}
+            {% if user.is_admin_role or p.agent == user %}{# admins: every listing; agents: only their own #}
+              {% if p.approval_status == 'approved' %}
+              <form method="post" action="{% url 'dashboard:property_status' p.pk 'inactive' %}" class="d-inline" data-confirm="Lock {{ p.reference }}? It will be taken off the website.">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-outline-secondary" title="Lock (take offline)"><i class="fa-solid fa-lock"></i></button></form>
+              {% endif %}
+              <form method="post" action="{% url 'dashboard:property_delete' p.pk %}" class="d-inline" data-confirm="Delete {{ p.reference }} permanently? Its photos are deleted too.">{% csrf_token %}
                 <button class="btn btn-sm btn-outline-danger" title="Delete"><i class="fa-regular fa-trash-can"></i></button></form>
             {% endif %}
           </td>

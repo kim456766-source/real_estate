@@ -2,6 +2,30 @@
 (function () {
   "use strict";
 
+  // Broken photo (file missing or failed to load): show a neat "no photo" placeholder instead of
+  // the browser's broken-image icon and the long alt text.
+  const PHOTO_PLACEHOLDER = "data:image/svg+xml," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">' +
+    '<rect width="800" height="600" fill="#e7f1ec"/>' +
+    '<g fill="none" stroke="#1a8754" stroke-width="14" stroke-linejoin="round" opacity=".45">' +
+    '<rect x="290" y="220" width="220" height="160" rx="16"/><circle cx="345" cy="270" r="18"/>' +
+    '<path d="M300 365l70-70 50 45 35-30 45 55"/></g>' +
+    '<text x="400" y="430" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="26" fill="#1a8754" opacity=".7">Photo not available</text></svg>');
+  function useFallback(img) {
+    if (!img || img.dataset.fallback || img.src.startsWith("data:")) return;
+    img.dataset.fallback = "1";
+    img.alt = "";
+    img.src = PHOTO_PLACEHOLDER;
+  }
+  document.addEventListener("error", function (e) {
+    if (e.target && e.target.tagName === "IMG") useFallback(e.target);
+  }, true);  // capture: image errors don't bubble
+  // Images that already failed before this script ran
+  document.querySelectorAll("img").forEach(function (img) {
+    // (lazy images that haven't started loading are skipped: the error listener covers them later)
+    if (img.loading !== "lazy" && img.complete && img.naturalWidth === 0 && img.getAttribute("src")) useFallback(img);
+  });
+
   function getCookie(name) {
     const m = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
     return m ? decodeURIComponent(m[2]) : null;

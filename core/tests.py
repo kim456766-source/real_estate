@@ -280,6 +280,44 @@ class TheoPropertyTests(TestCase):
         self.client.post(reverse("dashboard:inquiry_detail", args=[pub.pk]), {"status": pub.status})
         self.assertNotContains(stranger.get(self.prop.get_absolute_url()), "Is water available all year?")
 
+    # ---------- who may manage a listing (edit / lock / delete) ----------
+    def test_staff_bar_on_property_page(self):
+        url = self.prop.get_absolute_url()
+        edit = reverse("dashboard:property_edit", args=[self.prop.pk])
+        self.assertNotContains(self.client.get(url), edit)            # visitors: no staff tools
+        self.login(self.agent2)
+        self.assertNotContains(self.client.get(url), edit)            # another agent: none
+        for user in (self.admin, self.agent):                         # admin and the listing's own agent: yes
+            self.login(user)
+            r = self.client.get(url)
+            self.assertContains(r, edit)
+            self.assertContains(r, reverse("dashboard:property_delete", args=[self.prop.pk]))
+            self.assertContains(r, reverse("dashboard:property_status", args=[self.prop.pk, "inactive"]))
+
+    def test_agent_manages_only_own_listings(self):
+        other = Property.objects.filter(approval_status="approved").exclude(agent=self.agent).exclude(agent=None).first()
+        self.login(self.agent)
+        for name, args in (("dashboard:property_status", [other.pk, "inactive"]), ("dashboard:property_delete", [other.pk])):
+            self.assertEqual(self.client.post(reverse(name, args=args)).status_code, 403, name)
+        self.assertEqual(self.client.get(reverse("dashboard:property_edit", args=[other.pk])).status_code, 403)
+        # their own listing: lock, then delete
+        own = self.prop
+        self.client.post(reverse("dashboard:property_status", args=[own.pk, "inactive"]))
+        own.refresh_from_db()
+        self.assertEqual(own.approval_status, "inactive")
+        self.client.post(reverse("dashboard:property_delete", args=[own.pk]))
+        self.assertFalse(Property.objects.filter(pk=own.pk).exists())
+
+    def test_admin_manages_any_listing(self):
+        prop = Property.objects.filter(approval_status="approved").exclude(agent=None).exclude(agent=self.admin).first()
+        self.login(self.admin)
+        self.assertEqual(self.client.get(reverse("dashboard:property_edit", args=[prop.pk])).status_code, 200)
+        self.client.post(reverse("dashboard:property_status", args=[prop.pk, "inactive"]))
+        prop.refresh_from_db()
+        self.assertEqual(prop.approval_status, "inactive")
+        self.client.post(reverse("dashboard:property_delete", args=[prop.pk]))
+        self.assertFalse(Property.objects.filter(pk=prop.pk).exists())
+
     # ---------- sold / rented, and old conversations ----------
     def test_marking_property_taken(self):
         prop = self.prop
@@ -987,7 +1025,9 @@ class TheoPropertyTests(TestCase):
                          ("dashboard:settings", {}), ("dashboard:audit", {}),
                          ("dashboard:property_review", {"pk": self.prop.pk})]:
             self.assertEqual(self.client.get(reverse(name, kwargs=kw)).status_code, 403, name)
-        self.assertEqual(self.client.post(reverse("dashboard:property_delete", args=[self.prop.pk])).status_code, 403)
+        # deleting: only their own listings (see test_agent_manages_only_own_listings)
+        other = Property.objects.exclude(agent=self.agent).first()
+        self.assertEqual(self.client.post(reverse("dashboard:property_delete", args=[other.pk])).status_code, 403)
 
     def test_all_dashboard_pages(self):
         inq, appt = Inquiry.objects.first(), Appointment.objects.first()

@@ -40,8 +40,8 @@ from properties.models import Category, Property, PropertyImage
 from properties.utils import save_property_images
 
 
-from .scoping import (appointments_for, can_edit_property, can_manage_appointments, can_publish, inquiries_for,
-                      properties_for)
+from .scoping import (appointments_for, can_edit_property, can_manage_appointments, can_manage_listing, can_publish,
+                      inquiries_for, properties_for)
 
 logger = logging.getLogger("theo.dashboard")
 
@@ -195,7 +195,8 @@ def property_edit(request, pk):
         messages.success(request, "Property updated.")
         return redirect("dashboard:property_edit", pk=prop.pk)
     return render(request, "dashboard/properties/form.html", {
-        "form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop)})
+        "form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop),
+        "can_manage": can_manage_listing(request.user, prop)})
 
 
 @admin_required
@@ -286,9 +287,14 @@ def property_photos_zip(request, pk):
 @require_POST
 def property_delete(request, pk):
     prop = get_object_or_404(Property, pk=pk)
-    if not request.user.is_admin_role:
+    if not can_manage_listing(request.user, prop):  # admins: any listing; agents: only their own
         raise PermissionDenied
     log_action(request, "property_deleted", prop)
+    for img in prop.images.all():
+        try:
+            img.image.delete(save=False)  # remove the photo files too (Cloudinary / disk)
+        except Exception:  # a missing file or a storage hiccup must not block deleting the listing
+            logger.warning("Could not delete photo file %s", img.image.name, exc_info=True)
     prop.delete()
     messages.success(request, "Property deleted.")
     return redirect("dashboard:properties")
@@ -301,7 +307,10 @@ def image_delete(request, pk):
     if not can_edit_property(request.user, img.property):
         raise PermissionDenied
     prop = img.property
-    img.image.delete(save=False)
+    try:
+        img.image.delete(save=False)
+    except Exception:  # file already gone (e.g. lost before Cloudinary was set up): still remove the record
+        logger.warning("Could not delete photo file %s", img.image.name, exc_info=True)
     img.delete()
     return redirect("dashboard:property_edit", pk=prop.pk)
 
@@ -361,9 +370,16 @@ def _announce_status(prop, text):
 @dashboard_required
 @require_POST
 def property_quick_status(request, pk, status):
-    """One-click publish / deactivate buttons (admins, or agents allowed to publish their claimed listings)."""
+    """One-click publish / lock (take offline) buttons.
+    Publishing: admins, or agents allowed to publish directly. Locking: admins, or the listing's own agent."""
     prop = get_object_or_404(Property, pk=pk)
-    if status not in (Property.Approval.APPROVED, Property.Approval.INACTIVE) or not can_publish(request.user, prop):
+    if status == Property.Approval.APPROVED:
+        allowed = can_publish(request.user, prop)
+    elif status == Property.Approval.INACTIVE:
+        allowed = can_manage_listing(request.user, prop)
+    else:
+        allowed = False
+    if not allowed:
         raise PermissionDenied
     prop.approval_status = status
     prop.save(update_fields=["approval_status", "updated_at"])

@@ -111,8 +111,14 @@ def property_detail(request, slug):
     similar = similar_properties(prop, public_properties())  # same area or close price (properties/similar.py)
     public_qa = (prop.inquiries.filter(is_public=True).select_related("assigned_agent")
                  .prefetch_related("thread__author").order_by("-updated_at")[:20])
+    # Staff tools on the page: admins on every listing, agents only on their own
+    from dashboard.scoping import can_edit_property, can_manage_listing, can_publish
+    staff = user.is_authenticated and user.uses_dashboard
     return render(request, "properties/detail.html", {
         "property": prop,
+        "can_edit": staff and can_edit_property(user, prop),
+        "can_manage": staff and can_manage_listing(user, prop),
+        "can_publish": staff and can_publish(user, prop),
         "public_qa": public_qa,
         "inquiry_form": InquiryForm(initial={"message": f"Hello, I'm interested in {prop.title} ({prop.reference})."}),
         "similar": similar,

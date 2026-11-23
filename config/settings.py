@@ -216,7 +216,7 @@ SITE_URL = os.getenv("SITE_URL", f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER
 
 # Cloudinary (optional): set CLOUDINARY_URL and `pip install django-cloudinary-storage`
 CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "")
-if CLOUDINARY_URL:
+if CLOUDINARY_URL and "test" not in sys.argv[1:2]:  # tests never upload to the real Cloudinary account
     INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]
     STORAGES["default"] = {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"}
 

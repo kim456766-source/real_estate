@@ -905,13 +905,23 @@ class TheoPropertyTests(TestCase):
         r = self.client.post(reverse("dashboard:property_create"), {"property_type": "house"})
         self.assertEqual(r.status_code, 200)
         errors = r.context["form"].errors
-        for name in ("purpose", "title", "price", "description", "sector", "owner_name",
-                     "owner_phone", "bedrooms", "bathrooms", "new_images"):
+        for name in ("purpose", "title", "price", "description", "sector", "bedrooms", "bathrooms", "new_images"):
             self.assertIn(name, errors, name)
+        for name in ("owner_name", "owner_phone", "owner_email"):  # owner details are optional
+            self.assertNotIn(name, errors, name)
         self.assertContains(r, "is-invalid")
         # removed fields are no longer on the form
         for gone in ("category", "village", "year_built", "video_url", "availability", "district", "latitude", "longitude"):
             self.assertNotIn(gone, r.context["form"].fields)
+
+    def test_staff_form_saves_without_owner_details(self):
+        self.login(self.admin)
+        data = self.staff_data(title="No owner house")
+        for name in ("owner_name", "owner_phone"):
+            data.pop(name)
+        self.client.post(reverse("dashboard:property_create"), data)
+        p = Property.objects.get(title="No owner house")
+        self.assertEqual((p.owner_name, p.owner_phone), ("", ""))
 
     def test_staff_form_skips_owner_fields_for_owner_submission(self):
         self.login(self.admin)

@@ -179,8 +179,9 @@ class PropertyForm(BootstrapFormMixin, forms.ModelForm):
             type_choices.append((current, self.instance.get_property_type_display()))
         self.fields["property_type"].choices = type_choices
 
-        for name in ("title", "description", "price", "sector", "owner_name", "owner_phone"):
+        for name in ("title", "description", "price", "sector"):
             self.fields[name].required = True
+        # Owner details are optional for staff (kept private, never shown publicly)
         self.fields["title"].widget.attrs["placeholder"] = "e.g. Modern 4-bedroom house in Kibagabaga"
         self.fields["sector"].widget.attrs["placeholder"] = "e.g. Kimironko"
         self.fields["owner_phone"].widget.attrs["placeholder"] = "07XX XXX XXX"

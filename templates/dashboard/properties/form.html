@@ -154,7 +154,6 @@
           <li data-check="location">Sector</li>
           <li data-check="description">Description</li>
           <li data-check="photos">At least one photo</li>
-          {% if not form.is_owner_submission %}<li data-check="owner">Owner name and phone</li>{% endif %}
         </ul>
       </section>
     </div>
@@ -208,7 +207,6 @@
       location: val("sector"),
       description: val("description"),
       photos: photos > 0,
-      owner: val("owner_name") && val("owner_phone"),
     };
     document.querySelectorAll("#checklist [data-check]").forEach(li => li.classList.toggle("done", !!ok[li.dataset.check]));
   }

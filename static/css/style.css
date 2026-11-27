@@ -597,3 +597,6 @@ img { max-width: 100%; }
 .ask-choice .fa-chevron-right { font-size: .75rem; opacity: .6; }
 .ask-choice-own { border-style: dashed; background: #fff; color: #444; }
 @media (min-width: 768px) { .ask-section .ask-choices { grid-template-columns: 1fr 1fr; } }
+/* Property page: map in the right column (under the agent's card) */
+.side-map #map { height: 260px; }
+@media (max-height: 920px) { .sticky-side { position: static; } }  /* short screens: let the right column scroll with the page */

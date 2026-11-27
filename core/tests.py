@@ -331,6 +331,9 @@ class TheoPropertyTests(TestCase):
         self.assertContains(page, "Write my own question")
         self.assertContains(page, 'id="ask"')  # at the bottom of the listing (left side)
         self.assertLess(page.content.decode().index('id="ask"'), page.content.decode().index('id="contact"'))
+        if self.prop.latitude:  # the map sits in the right column, under the agent's card
+            html = page.content.decode()
+            self.assertLess(html.index('id="contact"'), html.index('id="map"'))
         self.assertNotContains(page, 'name="phone"')
         self.assertNotContains(page, "{#")  # no template notes printed on the page
         self.assertNotContains(self.client.get(reverse("pages:home")), "floating button that opens")

@@ -230,6 +230,12 @@ def device_conversation(request, prop):
     return my_inquiries(request).filter(property=prop).exclude(status=Inquiry.Status.CLOSED).first()
 
 
+def visitor_label(inquiry):
+    """'Visitor 21 · Windows computer': a unique, readable name for an anonymous chat."""
+    device = (inquiry.device_info or "").split(" · ")[0]
+    return f"Visitor {inquiry.pk}" + (f" · {device}" if device and device != "Unknown device" else "")
+
+
 def _chat_json(inquiry, as_agent=False):
     """The conversation for the chat box. `as_agent`: seen by the agent (their messages on the right)."""
     agent = inquiry.assigned_agent
@@ -292,8 +298,13 @@ def chat_send(request, slug):
         inquiry.name = request.user.get_full_name() or request.user.username
         inquiry.email = request.user.email or ""
     inquiry.save()
+    if inquiry.name == ChatStartForm.VISITOR_NAME:
+        # Anonymous chats get their own label ("Visitor 21 · Windows computer"), so the agent can tell two
+        # visitors asking the same question apart and answers the right one.
+        inquiry.name = visitor_label(inquiry)
+        Inquiry.objects.filter(pk=inquiry.pk).update(name=inquiry.name)
     deliver_to_agent(request, inquiry, "New property inquiry",
-                     f"{inquiry.name} ({inquiry.phone or inquiry.email or inquiry.device_info or 'website chat'}) asked about "
+                     f"{inquiry.name} ({inquiry.phone or inquiry.email or 'website chat'}) asked about "
                      f"{prop.reference} - {prop.title}: \"{inquiry.message[:120]}\"", client_text=inquiry.message)
     return remember_device(request, JsonResponse(_chat_json(inquiry)))
 

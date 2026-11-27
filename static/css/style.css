@@ -122,7 +122,7 @@ body:has(.login-modal.show) .modal-backdrop.show { opacity: .28; }
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
 .search-toggle:hover, .search-toggle[aria-expanded="true"] { border-color: #0080ff; color: #0080ff; background: #eef5ff; }
 /* The search bar: always shown, centred under the owner bar */
-.search-panel-wrap { padding: 16px 0 6px; position: relative; z-index: 1020; }
+.search-panel-wrap { padding: 16px 0 6px; position: relative; z-index: 1010; }  /* below the sticky menu (1020): never covers it when scrolling */
 .live-search-box { display: flex; align-items: center; border: 1.5px solid #cfd8dc; border-radius: 999px; background: #fff;
   overflow: hidden; transition: border-color .15s, box-shadow .15s; }
 .live-search-box:focus-within { border-color: #0080ff; box-shadow: 0 0 0 4px rgba(0,128,255,.15); }

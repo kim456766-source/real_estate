@@ -1178,7 +1178,11 @@ class TheoPropertyTests(TestCase):
         self.assertTrue(data["ok"])
         inq = Inquiry.objects.get(pk=data["conversation"])
         self.assertEqual((inq.name, inq.phone, inq.email, inq.assigned_agent, inq.device_info),
-                         ("Website visitor", "", "", self.agent, "Android phone · Chrome"))
+                         (f"Visitor {inq.pk} · Android phone", "", "", self.agent, "Android phone · Chrome"))
+        # two visitors asking the same thing get different labels, so the agent answers the right one
+        twin = self.client_class().post(send, {"message": "Is this property still available?"},
+                                        HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Edg/120").json()
+        self.assertEqual(Inquiry.objects.get(pk=twin["conversation"]).name, f"Visitor {twin['conversation']} · Windows computer")
         self.assertTrue(Notification.objects.filter(user=self.agent, title="New property inquiry").exists())
         # the agent answers in the dashboard; the reply shows in the box (polling)
         agent = self.client_class()

@@ -143,17 +143,25 @@ def submit_inquiry(request, slug):
     """The client's message is saved (private: only this device and the agent see it), the agent is
     notified, and the client is taken straight to WhatsApp with their message and the listing's link."""
     prop = get_object_or_404(Property, slug=slug, approval_status=Property.Approval.APPROVED)
+    ajax = request.headers.get("x-requested-with") == "XMLHttpRequest"
     if prop.is_taken:
-        messages.info(request, f"This property has already been {prop.get_availability_display().lower()}. "
-                               "Have a look at similar properties below.")
+        text = (f"This property has already been {prop.get_availability_display().lower()}. "
+                "Have a look at similar properties below.")
+        if ajax:
+            return JsonResponse({"ok": False, "error": text}, status=400)
+        messages.info(request, text)
         return redirect(prop.get_absolute_url() + "#similar")
     if hit_rate_limit(request, "inquiry", PER_HOUR):
-        messages.error(request, "You have sent too many messages in a short time. Please try again later "
-                                "or contact us on WhatsApp.")
+        text = "You have sent too many messages in a short time. Please try again later or contact us on WhatsApp."
+        if ajax:
+            return JsonResponse({"ok": False, "error": text}, status=429)
+        messages.error(request, text)
         return redirect(prop.get_absolute_url() + "#contact")
     form = InquiryForm(request.POST)
     if not form.is_valid():
         errors = " ".join(e for errs in form.errors.values() for e in errs)
+        if ajax:
+            return JsonResponse({"ok": False, "error": f"Your message was not sent. {errors}"}, status=400)
         messages.error(request, f"Your message was not sent. {errors}")
         return redirect(prop.get_absolute_url() + "#contact")
     inquiry = form.save(commit=False)
@@ -170,9 +178,12 @@ def submit_inquiry(request, slug):
            f"({prop.location_display}): \"{inquiry.message[:120]}\"")
     agent = deliver_to_agent(request, inquiry, "New property inquiry", msg, client_text=inquiry.message)
     who = (agent.get_full_name() or str(agent)) if agent else "our team"
-    messages.success(request, f"Your message was sent to {who}. It is saved under \"Agent replies\" on this "
-                              "phone or computer, where only you and the agent can see it.")
+    notice = (f"Your message was sent to {who}. It is saved under \"Agent replies\" on this phone or computer, "
+              "where only you and the agent can see it.")
     wa = agent_whatsapp_url(request, prop, inquiry.message, inquiry.name)
+    if ajax:  # the page opens WhatsApp itself (app on phones, WhatsApp Web on computers)
+        return remember_device(request, JsonResponse({"ok": True, "whatsapp": wa, "notice": notice}))
+    messages.success(request, notice)
     return remember_device(request, redirect(wa or prop.get_absolute_url() + "#contact"))
 
 

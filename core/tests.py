@@ -315,6 +315,20 @@ class TheoPropertyTests(TestCase):
         # the property page's WhatsApp button also carries the listing's link
         self.assertIn(self.prop.get_absolute_url(), unquote(page.context["whatsapp_url"]))
 
+    def test_inquiry_form_answers_the_page_directly(self):
+        """With JavaScript, the form gets the WhatsApp link back and opens WhatsApp itself (no wa.me choice page)."""
+        url = reverse("inquiries:submit", args=[self.prop.slug])
+        ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+        r = self.client.post(url, {"name": "Jo", "phone": "0788555111", "message": "Hi", "on_whatsapp": "on"}, **ajax)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        self.assertTrue(data["whatsapp"].startswith("https://wa.me/250"))
+        self.assertIn("Agent replies", data["notice"])
+        self.assertIn("tp_device", r.cookies)
+        bad = self.client.post(url, {"name": "Jo", "message": "Hi"}, **ajax)
+        self.assertEqual((bad.status_code, bad.json()["ok"]), (400, False))
+        self.assertContains(self.client.get(self.prop.get_absolute_url()), 'class="js-wa-inquiry"')
+
     def test_whatsapp_number_formats(self):
         from inquiries.device import whatsapp_number
         for raw in ("0788 123 456", "+250 788 123 456", "250788123456", "788123456", "00250788123456"):

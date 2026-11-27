@@ -491,3 +491,84 @@ window.initPlaces = function () {
     }
   });
 })();
+
+// WhatsApp without WhatsApp's "Open app / Continue to WhatsApp Web" choice page:
+// phones open the WhatsApp app directly; computers open the chat in WhatsApp Web, ready to send.
+window.TPWhatsApp = (function () {
+  const isPhone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  function number(raw) {
+    let d = String(raw || "").replace(/\D/g, "");
+    if (d.startsWith("00")) d = d.slice(2);
+    if (d.length === 10 && d.startsWith("07")) d = "250" + d.slice(1);   // 0788 123 456 -> 250788123456
+    else if (d.length === 9 && d.startsWith("7")) d = "250" + d;
+    return d;
+  }
+  function parse(href) {
+    try {
+      const u = new URL(href, location.href);
+      if (u.hostname !== "wa.me" && u.hostname !== "api.whatsapp.com") return null;
+      return { phone: number(u.pathname.replace(/\//g, "") || u.searchParams.get("phone")), text: u.searchParams.get("text") || "" };
+    } catch (e) { return null; }
+  }
+  function query(t) {
+    const q = new URLSearchParams();
+    if (t.phone) q.set("phone", t.phone);
+    if (t.text) q.set("text", t.text);
+    return q.toString();
+  }
+  function open(t, newTab) {
+    if (isPhone) {
+      // The app opens straight away. If WhatsApp isn't installed, nothing opens: fall back to wa.me.
+      const fallback = setTimeout(function () {
+        if (!document.hidden) location.href = "https://wa.me/" + t.phone + (t.text ? "?text=" + encodeURIComponent(t.text) : "");
+      }, 1800);
+      document.addEventListener("visibilitychange", () => clearTimeout(fallback), { once: true });
+      location.href = "whatsapp://send?" + query(t);
+    } else {
+      const url = "https://web.whatsapp.com/send?" + query(t);
+      const win = newTab ? window.open(url, "_blank", "noopener") : null;
+      if (!win) location.href = url;
+    }
+  }
+  document.addEventListener("click", function (e) {
+    const a = e.target.closest("a[href]");
+    if (!a || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = parse(a.href);
+    if (!t) return;
+    e.preventDefault();
+    open(t, a.target === "_blank");
+  });
+  return { open: open, parse: parse };
+})();
+
+// Property page "Send on WhatsApp": the message is saved for the agent, then WhatsApp opens
+// directly (same as above). Without JavaScript the form still works (server redirect to wa.me).
+document.querySelectorAll("form.js-wa-inquiry").forEach(function (form) {
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const button = form.querySelector("button[type=submit], button:not([type])");
+    const note = form.querySelector(".js-wa-note");
+    form.querySelectorAll(".js-wa-error").forEach(el => el.remove());
+    button.disabled = true;
+    try {
+      const res = await fetch(form.action, { method: "POST", body: new FormData(form),
+        headers: { "X-Requested-With": "XMLHttpRequest" } });
+      const data = await res.json();
+      if (!data.ok) {
+        const err = document.createElement("div");
+        err.className = "alert alert-danger small py-2 mt-2 js-wa-error";
+        err.textContent = data.error || "Your message was not sent. Please check the form.";
+        button.after(err);
+        return;
+      }
+      if (note) { note.hidden = false; note.textContent = data.notice; }
+      form.querySelector("textarea[name=message]").value = "";
+      const t = window.TPWhatsApp.parse(data.whatsapp);
+      if (t) window.TPWhatsApp.open(t, true);
+    } catch (err) {
+      form.submit();  // connection hiccup: fall back to the normal way
+    } finally {
+      button.disabled = false;
+    }
+  });
+});

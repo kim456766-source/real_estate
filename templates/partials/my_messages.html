@@ -1,5 +1,5 @@
-{# "Agent replies": floating button that opens a chat box. On a property page you can ask about that
-   property and read the agent's replies right here; elsewhere it lists this device's conversations. #}
+{% comment %}"Agent replies": floating button that opens a chat box. On a property page you can ask about that
+property and read the agent's replies right here; elsewhere it lists this device's conversations.{% endcomment %}
 {% load humanize %}
 {% if request.resolver_match.view_name != "inquiries:conversations" and not request.resolver_match.namespace == "dashboard" %}
 <a href="{% url 'inquiries:conversations' %}" class="messages-float" id="chatToggle" aria-controls="chatPanel" aria-expanded="false"

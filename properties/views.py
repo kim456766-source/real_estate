@@ -11,7 +11,6 @@ from django.urls import reverse
 
 from core.utils import client_ip
 from favorites.session import favorite_ids
-from inquiries.forms import InquiryForm
 from inquiries.views import _chat_json, agent_whatsapp_url, device_conversation
 from notifications.services import email_contact, email_support, notify_admins
 
@@ -35,6 +34,14 @@ PRESETS = {
 }
 
 SUBMISSIONS_PER_HOUR = 5
+# Questions a client can choose on a property page: the chosen one is sent to the agent in "Agent replies"
+ASK_CHOICES = [
+    "Is this property still available?",
+    "Can I schedule a viewing?",
+    "What is the best price?",
+    "Are the documents (title deed) ready?",
+    "Where exactly is it located?",
+]
 
 
 def public_properties():
@@ -121,7 +128,7 @@ def property_detail(request, slug):
         # "Agent replies" chat box: about this property (continues this device's conversation, if any)
         "chat_property": prop if prop.is_public and not prop.is_taken else None,
         "chat_data": _chat_json(convo) if (convo := device_conversation(request, prop)) else None,
-        "inquiry_form": InquiryForm(initial={"message": f"Hello, I'm interested in {prop.title} ({prop.reference})."}),
+        "ask_choices": ASK_CHOICES,
         "similar": similar,
         "is_favorite": prop.pk in favorite_ids(request),
     })

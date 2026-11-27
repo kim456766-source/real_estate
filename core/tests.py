@@ -285,8 +285,6 @@ class TheoPropertyTests(TestCase):
         self.client.post(url, {"name": "Bad Number", "phone": "12", "message": "Hi", "on_whatsapp": "on"})
         self.assertFalse(Inquiry.objects.filter(name="Bad Number").exists())
         page = self.client.get(self.prop.get_absolute_url())
-        self.assertNotIn("email", page.context["inquiry_form"].fields)
-        self.assertContains(page, "registered on WhatsApp")
         r = self.client.post(url, {"name": "Claudine Mukamana", "phone": "0788555444", "on_whatsapp": "on",
                                    "message": "Is water available all year?"},
                              HTTP_USER_AGENT="Mozilla/5.0 (Linux; Android 14) Mobile Chrome/120.0")
@@ -327,7 +325,13 @@ class TheoPropertyTests(TestCase):
         self.assertIn("tp_device", r.cookies)
         bad = self.client.post(url, {"name": "Jo", "message": "Hi"}, **ajax)
         self.assertEqual((bad.status_code, bad.json()["ok"]), (400, False))
-        self.assertContains(self.client.get(self.prop.get_absolute_url()), 'class="js-wa-inquiry"')
+        # the property page offers question choices that open "Agent replies" (no form to fill in)
+        page = self.client.get(self.prop.get_absolute_url())
+        self.assertContains(page, 'data-chat-ask="Is this property still available?"')
+        self.assertContains(page, "Write my own question")
+        self.assertNotContains(page, 'name="phone"')
+        self.assertNotContains(page, "{#")  # no template notes printed on the page
+        self.assertNotContains(self.client.get(reverse("pages:home")), "floating button that opens")
 
     def test_whatsapp_number_formats(self):
         from inquiries.device import whatsapp_number

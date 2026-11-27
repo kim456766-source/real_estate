@@ -435,6 +435,16 @@ window.initPlaces = function () {
     start.hidden = true; intro.hidden = true;
     body.scrollTop = body.scrollHeight;
   }
+  // The question choices on the property page: open the box and send the chosen question to the agent
+  document.querySelectorAll("[data-chat-ask]").forEach(function (link) {
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      setOpen(true);
+      const q = link.dataset.chatAsk;
+      if (q) { message.value = q; form.requestSubmit(); } else { message.focus(); }
+    });
+  });
+
   const initial = document.getElementById("chatData");
   const initialData = initial ? JSON.parse(initial.textContent) : null;
   if (initialData) render(initialData);

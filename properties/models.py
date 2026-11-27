@@ -124,12 +124,15 @@ class Property(TimeStampedModel):
     is_featured = models.BooleanField(default=False)
     views = models.PositiveIntegerField(default=0)
 
+    # Hot deal: chosen by an administrator (not computed from prices; prices are set by the agent, owner or
+    # admin and never discounted). It shows at the top of the website until this date and time.
+    hot_deal_until = models.DateTimeField("Hot deal until", null=True, blank=True, db_index=True)
+    # When the listing was (re)posted: "New" badge, ordering and the 30-day "check this listing" reminder.
+    # "Repost" sets it to now, so an older listing that is still on offer comes back as new.
+    listed_at = models.DateTimeField(default=timezone.now, db_index=True, editable=False)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True, editable=False)
+
     # Computed automatically by properties/ranking.py (never edited by hand)
-    market_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, editable=False,
-                                       help_text="Typical price of similar listings")
-    deal_percent = models.SmallIntegerField(null=True, blank=True, editable=False,
-                                            help_text="% below (+) or above (-) similar listings")
-    is_hot_deal = models.BooleanField(default=False, db_index=True, editable=False)
     trend_score = models.FloatField(default=0, db_index=True, editable=False)
     is_trending = models.BooleanField(default=False, editable=False)
 
@@ -181,7 +184,21 @@ class Property(TimeStampedModel):
 
     @property
     def is_new(self):
-        return bool(self.created_at) and self.created_at >= timezone.now() - timedelta(days=settings.NEW_LISTING_DAYS)
+        return bool(self.listed_at) and self.listed_at >= timezone.now() - timedelta(days=settings.NEW_LISTING_DAYS)
+
+    @property
+    def is_hot_deal(self):
+        """Picked by an administrator, still within its time, and still on offer."""
+        return (bool(self.hot_deal_until) and self.hot_deal_until > timezone.now()
+                and self.availability == self.Availability.AVAILABLE)
+
+    @classmethod
+    def hot_deal_q(cls):
+        return models.Q(hot_deal_until__gt=timezone.now(), availability=cls.Availability.AVAILABLE)
+
+    @property
+    def listed_days(self):
+        return (timezone.now() - self.listed_at).days if self.listed_at else 0
 
     @property
     def is_land(self):

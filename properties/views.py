@@ -12,6 +12,7 @@ from django.urls import reverse
 from core.utils import client_ip
 from favorites.session import favorite_ids
 from inquiries.forms import InquiryForm
+from inquiries.views import agent_whatsapp_url
 from notifications.services import email_contact, email_support, notify_admins
 
 from .filters import PropertyFilter
@@ -29,8 +30,8 @@ PRESETS = {
     "land": {"title": "Plots & Land", "filters": {"property_type__in": Property.LAND_TYPES}},
     "commercial": {"title": "Commercial Properties",
                    "filters": {"property_type__in": [Property.PropertyType.COMMERCIAL, Property.PropertyType.OFFICE]}},
-    "deals": {"title": "Hot Deals", "filters": {"is_hot_deal": True},
-              "subtitle": "Priced at least 10% below similar properties in the same area."},
+    "deals": {"title": "Hot Deals", "hot": True,
+              "subtitle": "Properties our team has picked for you right now."},
 }
 
 SUBMISSIONS_PER_HOUR = 5
@@ -49,10 +50,8 @@ def property_list(request, preset=None):
     title, subtitle = "All Properties", ""
     if preset:
         conf = PRESETS[preset]
-        qs = qs.filter(**conf["filters"])
+        qs = qs.filter(Property.hot_deal_q()) if conf.get("hot") else qs.filter(**conf["filters"])
         title, subtitle = conf["title"], conf.get("subtitle", "")
-    if preset == "deals":
-        qs = qs.order_by("-deal_percent")
     f = PropertyFilter(request.GET, queryset=qs)
     page = Paginator(f.qs, 12).get_page(request.GET.get("page"))
     return render(request, "properties/list.html", {
@@ -110,8 +109,6 @@ def property_detail(request, slug):
     Property.objects.filter(pk=prop.pk).update(views=F("views") + 1)
 
     similar = similar_properties(prop, public_properties())  # same area or close price (properties/similar.py)
-    public_qa = (prop.inquiries.filter(is_public=True).select_related("assigned_agent")
-                 .prefetch_related("thread__author").order_by("-updated_at")[:20])
     # Staff tools on the page: admins on every listing, agents only on their own
     from dashboard.scoping import can_edit_property, can_manage_listing, can_publish
     staff = user.is_authenticated and user.uses_dashboard
@@ -120,7 +117,7 @@ def property_detail(request, slug):
         "can_edit": staff and can_edit_property(user, prop),
         "can_manage": staff and can_manage_listing(user, prop),
         "can_publish": staff and can_publish(user, prop),
-        "public_qa": public_qa,
+        "whatsapp_url": agent_whatsapp_url(request, prop, f"Hello, I am interested in {prop.title} ({prop.reference})."),
         "inquiry_form": InquiryForm(initial={"message": f"Hello, I'm interested in {prop.title} ({prop.reference})."}),
         "similar": similar,
         "is_favorite": prop.pk in favorite_ids(request),

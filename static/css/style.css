@@ -121,10 +121,8 @@ body:has(.login-modal.show) .modal-backdrop.show { opacity: .28; }
 .search-toggle { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid #cfd8dc; background: #fff; color: #263238;
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; }
 .search-toggle:hover, .search-toggle[aria-expanded="true"] { border-color: #0080ff; color: #0080ff; background: #eef5ff; }
-/* The search panel: centred under the owner bar, slides open */
-.search-panel-wrap { padding: 18px 0 6px; animation: search-drop .22s ease-out; position: relative; z-index: 1020; }
-@keyframes search-drop { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .search-panel-wrap { animation: none; } }
+/* The search bar: always shown, centred under the owner bar */
+.search-panel-wrap { padding: 16px 0 6px; position: relative; z-index: 1020; }
 .live-search-box { display: flex; align-items: center; border: 1.5px solid #cfd8dc; border-radius: 999px; background: #fff;
   overflow: hidden; transition: border-color .15s, box-shadow .15s; }
 .live-search-box:focus-within { border-color: #0080ff; box-shadow: 0 0 0 4px rgba(0,128,255,.15); }

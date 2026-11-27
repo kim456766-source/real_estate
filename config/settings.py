@@ -95,6 +95,7 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
+        conn_health_checks=True,  # reuse the connection between requests, but reconnect if it was dropped
     )
 }
 # Every request runs in one database transaction: if anything fails half-way, nothing half-saved is kept.
@@ -208,13 +209,12 @@ LOGIN_EMAIL_CODE = env_bool("LOGIN_EMAIL_CODE", True)
 LOGIN_ALERTS_ASYNC = env_bool("LOGIN_ALERTS_ASYNC", "test" not in sys.argv[1:2])
 
 # Listing promotion (see properties/ranking.py)
-HOT_DEAL_MIN_PERCENT = 10        # at least 10% below similar listings
-HOT_DEAL_MAX_PERCENT = 60        # more than 60% below is treated as a data error, not a deal
-HOT_DEAL_MIN_COMPARABLES = 3     # need at least 3 similar listings nearby (same sector, else same district)
-HOT_DEAL_ALLOW_NATIONWIDE = False  # True = also compare against the whole country when an area has too few
+HOT_DEAL_MAX_DAYS = 180         # an admin can make a listing a hot deal for up to this many days at a time
 NEW_LISTING_DAYS = 7             # "New" badge for a week
 TRENDING_COUNT = 6               # how many listings get the "Trending" badge
 INQUIRY_RETENTION_DAYS = 30      # conversations are deleted this many days after their last message
+LISTING_CHECK_DAYS = 30          # remind the agent (or admins) to repost or remove a listing this old
+LISTING_REMIND_AGAIN_DAYS = 7    # ...and again every week until they act on it
 
 # External services
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")

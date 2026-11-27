@@ -61,7 +61,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% include "partials/my_messages.html" %}
-{% if new_meeting_code %}{% include "partials/meeting_code_modal.html" %}{% endif %}
 {% if not user.is_authenticated and request.resolver_match.view_name != "accounts:login" %}
 {# Sign In pop-up: opens over the current page (which stays visible behind it) #}
 <div class="modal fade login-modal" id="signInModal" tabindex="-1" aria-labelledby="modal-title" aria-hidden="true">

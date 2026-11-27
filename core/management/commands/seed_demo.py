@@ -60,7 +60,7 @@ PROPERTIES = [
          cat="Land & Plots", amenities="Title deed, Near new airport road"),
 ]
 
-# Small local markets so hot deals can be detected: each group has one listing priced well below the others.
+# Small local markets (several similar listings in the same sector), for search, similar listings and trending.
 MARKET_PROPERTIES = [
     # Houses for sale in Kimironko (~340,000 RWF/m²)
     dict(title="4-bedroom house in Kimironko", property_type="house", purpose="sale", price=110_000_000, size_sqm=320,
@@ -173,6 +173,8 @@ class Command(BaseCommand):
                 owner_name="Demo Owner", owner_phone=f"07880000{i:02d}", agent=agent if i % 2 else agent2,
                 created_by=agent, approval_status=Property.Approval.APPROVED, **d))
 
+        # Demo hot deal: in real use an admin picks hot deals (and how long they last) in the dashboard
+        Property.objects.filter(title__startswith="Spacious family house in Kimironko", hot_deal_until__isnull=True)             .update(hot_deal_until=timezone.now() + timedelta(days=14))
         refresh_scores()
 
         for title, cat, body in POSTS:

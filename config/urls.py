@@ -4,8 +4,10 @@ from django.contrib import admin
 from django.urls import include, path
 
 from accounts import google
+from core.views import healthz
 
 urlpatterns = [
+    path("healthz/", healthz, name="healthz"),  # for uptime monitors: keeps the free server awake
     path("admin/", admin.site.urls),
     # Sign in with Google (staff only). The callback address must match the one set in Google Cloud.
     path("auth/google/", google.google_start, name="google_login"),

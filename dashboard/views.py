@@ -1,7 +1,7 @@
 import csv
 import io
 import zipfile
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 import logging
 from django import forms
@@ -28,6 +28,7 @@ from appointments.models import Appointment
 from core.models import AuditLog, SiteSetting
 from core.security import SafeCsvWriter, safe_next_url
 from core.utils import log_action
+from inquiries.device import listing_text, whatsapp_link
 from inquiries.forms import InquiryResponseForm
 from inquiries.models import ContactMessage, Inquiry, InquiryMessage
 from notifications.emails import send_branded
@@ -37,6 +38,7 @@ from payments.gateways import GatewayError, GatewayNotConfigured, get_gateway
 from payments.models import Payment
 from properties.forms import CategoryForm, PropertyForm, PropertyReviewForm
 from properties.models import Category, Property, PropertyImage
+from properties.reminders import advice, listings_to_check
 from properties.utils import PHOTO_UPLOAD_FAILED, PhotoUploadError, save_property_images
 
 
@@ -128,6 +130,9 @@ def home(request):
         "upcoming_appointments": appts.filter(scheduled_for__gte=now)
                                       .exclude(status=Appointment.Status.CANCELLED)[:5],
         "pending_properties": props.filter(approval_status=Property.Approval.PENDING)[:5],
+        "to_check": listings_to_check(props)[:5],
+        "to_check_count": listings_to_check(props).count(),
+        "check_days": settings.LISTING_CHECK_DAYS,
     })
 
 
@@ -149,6 +154,10 @@ def property_list(request):
         qs = qs.filter(agent=request.user)
     elif assigned == "submissions":
         qs = qs.filter(source=Property.Source.WEBSITE)
+    elif assigned == "check":  # online for a month: repost, mark sold/rented or remove
+        qs = listings_to_check(qs)
+    elif assigned == "hot":
+        qs = qs.filter(Property.hot_deal_q())
     return render(request, "dashboard/properties/list.html", {
         "page_obj": paginate(request, qs), "q": q, "status": status, "assigned": assigned,
         "statuses": Property.Approval.choices,
@@ -187,6 +196,14 @@ def property_create(request):
     return render(request, "dashboard/properties/form.html", {"form": form, "is_new": True})
 
 
+def _edit_context(request, form, prop):
+    check = listings_to_check(Property.objects.filter(pk=prop.pk)).first()  # online for a month?
+    return {"form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop),
+            "can_manage": can_manage_listing(request.user, prop),
+            "check": check, "check_advice": advice(check) if check else "",
+            "hot_deal_max_days": settings.HOT_DEAL_MAX_DAYS, "today": timezone.localdate()}
+
+
 @dashboard_required
 def property_edit(request, pk):
     prop = get_object_or_404(Property, pk=pk)
@@ -201,15 +218,11 @@ def property_edit(request, pk):
         except PhotoUploadError:
             form.add_error("new_images", PHOTO_UPLOAD_FAILED)
             prop = Property.objects.get(pk=pk)  # what is really saved (the attempt was undone)
-            return render(request, "dashboard/properties/form.html", {
-                "form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop),
-                "can_manage": can_manage_listing(request.user, prop)})
+            return render(request, "dashboard/properties/form.html", _edit_context(request, form, prop))
         log_action(request, "property_updated", prop)
         messages.success(request, "Property updated.")
         return redirect("dashboard:property_edit", pk=prop.pk)
-    return render(request, "dashboard/properties/form.html", {
-        "form": form, "property": prop, "is_new": False, "can_publish": can_publish(request.user, prop),
-        "can_manage": can_manage_listing(request.user, prop)})
+    return render(request, "dashboard/properties/form.html", _edit_context(request, form, prop))
 
 
 @admin_required
@@ -419,6 +432,71 @@ def property_availability(request, pk, status):
                                   "from the website and clients with open conversations were told.")
     else:
         messages.success(request, f"{prop.reference} is {prop.get_availability_display().lower()} again and back on the website.")
+    return redirect(safe_next_url(request, reverse("dashboard:properties")))
+
+
+@admin_required
+@require_POST
+def property_hot_deal(request, pk):
+    """Admins pick a listing as a hot deal (whatever its age) until a chosen date, or stop it.
+    The price is never changed: it stays as set by the agent, owner or admin."""
+    prop = get_object_or_404(Property, pk=pk)
+    back = safe_next_url(request, reverse("dashboard:property_edit", args=[pk]))
+    if request.POST.get("action") == "stop":
+        prop.hot_deal_until = None
+        prop.save(update_fields=["hot_deal_until", "updated_at"])
+        log_action(request, "hot_deal_stopped", prop)
+        messages.success(request, f"{prop.reference} is no longer a hot deal.")
+        return redirect(back)
+    if prop.approval_status != Property.Approval.APPROVED or prop.availability != Property.Availability.AVAILABLE:
+        messages.error(request, "Only listings that are published and available can be hot deals.")
+        return redirect(back)
+    now = timezone.now()
+    until = None
+    raw_date = request.POST.get("until", "").strip()
+    if raw_date:
+        try:
+            day = forms.DateField().clean(raw_date)
+            until = timezone.make_aware(datetime.combine(day, time(23, 59)))  # to the end of that day
+        except (ValidationError, ValueError):
+            until = None
+    else:
+        try:
+            days = int(request.POST.get("days", ""))
+            until = now + timedelta(days=days) if days > 0 else None
+        except ValueError:
+            until = None
+    if not until or until <= now or until > now + timedelta(days=settings.HOT_DEAL_MAX_DAYS):
+        messages.error(request, f"Choose an end date between tomorrow and {settings.HOT_DEAL_MAX_DAYS} days from now.")
+        return redirect(back)
+    prop.hot_deal_until = until
+    prop.save(update_fields=["hot_deal_until", "updated_at"])
+    log_action(request, "hot_deal_set", prop, f"until {until:%Y-%m-%d %H:%M}")
+    if prop.agent and prop.agent != request.user:
+        notify(prop.agent, f"{prop.reference} is now a hot deal",
+               f"\"{prop.title}\" is shown at the top of the website as a hot deal until {until:%d %b %Y}.",
+               f"/dashboard/properties/{prop.pk}/edit/")
+    messages.success(request, f"{prop.reference} is a hot deal until {timezone.localtime(until):%d %b %Y %H:%M}. "
+                              "It is shown first on the website until then.")
+    return redirect(back)
+
+
+@dashboard_required
+@require_POST
+def property_repost(request, pk):
+    """'Repost': the listing is still on offer, so it comes back to the top as new and the 30-day
+    'check this listing' clock starts again. Admins: any listing; agents: their own."""
+    prop = get_object_or_404(Property, pk=pk)
+    if not can_manage_listing(request.user, prop):
+        raise PermissionDenied
+    if prop.approval_status != Property.Approval.APPROVED or prop.is_taken:
+        messages.error(request, "Only published listings that are still on offer can be reposted.")
+        return redirect(safe_next_url(request, reverse("dashboard:properties")))
+    prop.listed_at = timezone.now()
+    prop.reminder_sent_at = None
+    prop.save(update_fields=["listed_at", "reminder_sent_at", "updated_at"])
+    log_action(request, "property_reposted", prop)
+    messages.success(request, f"{prop.reference} has been reposted: it shows as new on the website again.")
     return redirect(safe_next_url(request, reverse("dashboard:properties")))
 
 
@@ -752,8 +830,8 @@ def inquiry_detail(request, pk):
             agent_name = request.user.get_full_name() or request.user.username
             email_contact(
                 inquiry.email, f"{agent_name} replied about {prop.title}",
-                "To answer, open \"Agent replies\" on our website and paste your meeting code (the one shown when you "
-                "sent your message). You can also call the agent.",
+                "To answer, open \"Agent replies\" on our website from the same phone or computer you used to send "
+                "your message, or chat with the agent on WhatsApp.",
                 name=inquiry.name, category="Agent reply",
                 intro=f"{agent_name}, the agent for this property, answered your message.",
                 quote=reply, quote_label=f"{agent_name} wrote",
@@ -761,8 +839,7 @@ def inquiry_detail(request, pk):
                          ("Price", f"{prop.price:,.0f} {prop.currency}" + (f" / {prop.rent_period}" if prop.rent_period else "")),
                          ("Agent", agent_name), ("Agent phone", request.user.phone)],
                 button=("Reply on the website", reverse("inquiries:conversations")),
-                note="Before you meet, the agent may ask for your meeting code: it proves you sent this message. "
-                     "Never pay money before visiting the property.",
+                note="Never pay money before visiting the property.",
                 reason=f"You received this because you asked {settings.SITE_NAME} about this property.")
         inquiry.save()
         if inquiry.assigned_agent and "assigned_agent" in form.changed_data:
@@ -777,8 +854,14 @@ def inquiry_detail(request, pk):
         log_action(request, "inquiry_updated", inquiry)
         messages.success(request, "Reply sent." if reply else "Inquiry updated.")
         return redirect(reverse("dashboard:inquiry_detail", args=[pk]) + "#reply")
+    prop = inquiry.property
+    client_whatsapp = whatsapp_link(inquiry.phone, listing_text(
+        prop, request.build_absolute_uri(prop.get_absolute_url()),
+        f"Hello {inquiry.name}, this is {request.user.get_full_name() or request.user.username} from "
+        f"{settings.SITE_NAME}, about your message on this property."))
     return render(request, "dashboard/inquiries/detail.html", {
         "inquiry": inquiry, "form": form, "thread": inquiry.thread.select_related("author"),
+        "client_whatsapp": client_whatsapp,
         "retention_days": settings.INQUIRY_RETENTION_DAYS})
 
 

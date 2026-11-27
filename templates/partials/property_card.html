@@ -7,7 +7,7 @@
     {% endwith %}
 
     <div class="pcard-tags">
-      {% if p.is_hot_deal %}<span class="ptag ptag-hot"><i class="fa-solid fa-fire"></i> {{ p.deal_percent }}% below market</span>{% endif %}
+      {% if p.is_hot_deal %}<span class="ptag ptag-hot"><i class="fa-solid fa-fire"></i> Hot deal</span>{% endif %}
       {% if p.is_new %}<span class="ptag ptag-new">New</span>{% endif %}
       {% if p.is_trending and not p.is_hot_deal %}<span class="ptag ptag-trend"><i class="fa-solid fa-arrow-trend-up"></i> Trending</span>{% endif %}
       {% if p.availability != 'available' %}<span class="ptag ptag-status">{{ p.get_availability_display }}</span>{% endif %}
@@ -31,7 +31,6 @@
 
   <div class="pcard-body">
     <div class="pcard-price">{{ p.price|floatformat:0|intcomma }} {{ p.currency }}{% if p.purpose == 'rent' and p.rent_period %}<span class="pcard-period"> / {{ p.rent_period }}</span>{% endif %}</div>
-    {% if p.is_hot_deal %}<div class="pcard-was">Similar nearby: <del>{{ p.market_price|floatformat:0|intcomma }} {{ p.currency }}</del></div>{% endif %}
     <div class="pcard-specs">
       {% if p.is_land %}{{ p.get_property_type_display }}{% if p.size_sqm %} · {{ p.size_sqm|intcomma }} m²{% endif %}
       {% elif p.property_type == 'commercial' %}Commercial{% if p.size_sqm %} · {{ p.size_sqm|intcomma }} m²{% endif %}{% if p.parking_spaces %} · {{ p.parking_spaces }} Parking{% endif %}

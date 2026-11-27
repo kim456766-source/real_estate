@@ -2,7 +2,7 @@ from django.conf import settings
 from django.utils.functional import SimpleLazyObject
 
 from favorites.session import favorite_ids
-from inquiries.views import NEW_CODE_KEY, unread_count
+from inquiries.views import unread_count
 
 from .models import SiteSetting
 
@@ -27,8 +27,6 @@ def site_context(request):
         "google_login_enabled": settings.GOOGLE_LOGIN_ENABLED,
         # Badge on the floating "Agent replies" button (only queried when a public page shows it)
         "agent_unread": SimpleLazyObject(lambda: unread_count(request)) if hasattr(request, "session") else 0,
-        # Meeting code pop-up: read once, then removed (shown a single time, like an OTP)
-        "new_meeting_code": request.session.pop(NEW_CODE_KEY, None) if hasattr(request, "session") else None,
     }
     if request.user.is_authenticated:
         ctx["unread_notifications"] = request.user.notifications.filter(is_read=False).count()

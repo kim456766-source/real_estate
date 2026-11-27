@@ -2,11 +2,13 @@
 import os
 import re
 import shutil
+from urllib.parse import unquote
 import tempfile
 import zipfile
 from datetime import timedelta
 from io import BytesIO, StringIO
 
+from django.conf import settings
 from django.core import mail
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -104,6 +106,11 @@ class TheoPropertyTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, self.prop.owner_phone)  # owner contact stays private
 
+    def test_health_check_for_uptime_monitor(self):
+        r = self.client.get("/healthz/")
+        self.assertEqual((r.status_code, r.content), (200, b"ok"))
+        self.assertIn("no-store", r["Cache-Control"])
+
     def test_public_header_has_no_dashboard(self):
         dash = reverse("dashboard:home")
         for user in (None, self.admin, self.agent):
@@ -113,8 +120,15 @@ class TheoPropertyTests(TestCase):
             html = r.content.decode()
             header, after = html.split("</nav>", 1)
             self.assertNotIn(f'href="{dash}"', header, user)
-            # "Sign In" sits top-right (no mention of "staff"); the owner call-to-action sits below the header
-            self.assertIn("My account" if user else "Sign In", header)
+            # Sign In is only at the bottom of the page (footer), never in the header; staff see "My account"
+            if user:
+                self.assertIn("My account", header)
+            else:
+                self.assertNotIn("Sign In", header)
+                self.assertIn("Sign In", html.split("<footer", 1)[1])
+            # the search bar is always shown under the owner bar, with a placeholder
+            self.assertNotIn("search-toggle", header)
+            self.assertRegex(after.split("<main>")[0], r'id="siteSearch">(?s:.*)placeholder="Search a house')
             self.assertNotIn("Staff", header)
             self.assertNotIn("Submit your property", header)
             self.assertIn("Property owner?", after.split("<main>")[0])
@@ -246,7 +260,7 @@ class TheoPropertyTests(TestCase):
 
     def test_anonymous_inquiry(self):
         r = self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                             {"name": "Visitor", "email": "v@example.com", "phone": "0788000111",
+                             {"on_whatsapp": "on", "name": "Visitor", "email": "v@example.com", "phone": "0788000111",
                               "message": "Is it available?"})
         self.assertEqual(r.status_code, 302)
         inq = Inquiry.objects.get(phone="0788000111")
@@ -257,47 +271,55 @@ class TheoPropertyTests(TestCase):
         """If the listing's agent is deactivated, the message goes to the admins instead of being lost."""
         User.objects.filter(pk=self.agent.pk).update(is_active=False)
         self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "Visitor", "email": "v@example.com", "phone": "0788000111", "message": "Hello?"})
+                         {"on_whatsapp": "on", "name": "Visitor", "email": "v@example.com", "phone": "0788000111", "message": "Hello?"})
         self.assertFalse(Notification.objects.filter(user=self.agent, title="New property inquiry").exists())
         self.assertTrue(Notification.objects.filter(user=self.admin, title="New property inquiry").exists())
 
-    def test_public_questions_and_answers(self):
+    def test_inquiry_opens_whatsapp_with_listing_and_stays_private(self):
         url = reverse("inquiries:submit", args=[self.prop.slug])
-        # the form no longer asks for an email; phone is required
-        r = self.client.post(url, {"name": "No Phone", "message": "Hi"})
+        # phone is required, and the client must confirm it is on WhatsApp
+        self.client.post(url, {"name": "No Phone", "message": "Hi", "on_whatsapp": "on"})
         self.assertFalse(Inquiry.objects.filter(name="No Phone").exists())
-        self.client.post(url, {"name": "Claudine Mukamana", "phone": "0788555444",
-                               "message": "Is water available all year?"})
-        Inquiry.objects.create(property=self.prop, name="Old Client", phone="0788999000",
-                               message="Secret budget question")  # older conversations stay private
-        pub = Inquiry.objects.get(phone="0788555444")
-        self.assertTrue(pub.is_public)
-        # the meeting code pops up once (like an OTP) right after sending, then never again for the client
-        first = self.client.get(self.prop.get_absolute_url())
-        self.assertContains(first, 'id="meetingCodeModal"')
-        self.assertContains(first, pub.meeting_code)
-        self.assertNotIn("email", first.context["inquiry_form"].fields)
-        again = self.client.get(self.prop.get_absolute_url())
-        self.assertNotContains(again, pub.meeting_code)
-        self.assertNotContains(again, "Request a visit")
-        InquiryMessage.objects.create(inquiry=pub, author=self.agent, body="Yes, there is a water tank.")
+        self.client.post(url, {"name": "No Confirm", "phone": "0788555443", "message": "Hi"})
+        self.assertFalse(Inquiry.objects.filter(name="No Confirm").exists())
+        self.client.post(url, {"name": "Bad Number", "phone": "12", "message": "Hi", "on_whatsapp": "on"})
+        self.assertFalse(Inquiry.objects.filter(name="Bad Number").exists())
+        page = self.client.get(self.prop.get_absolute_url())
+        self.assertNotIn("email", page.context["inquiry_form"].fields)
+        self.assertContains(page, "registered on WhatsApp")
+        r = self.client.post(url, {"name": "Claudine Mukamana", "phone": "0788555444", "on_whatsapp": "on",
+                                   "message": "Is water available all year?"},
+                             HTTP_USER_AGENT="Mozilla/5.0 (Linux; Android 14) Mobile Chrome/120.0")
+        inq = Inquiry.objects.get(phone="0788555444")
+        # straight to the agent's WhatsApp, with the client's words and the listing's link
+        self.assertTrue(r["Location"].startswith("https://wa.me/250"), r["Location"])
+        text = unquote(r["Location"].split("?text=", 1)[1])
+        self.assertIn("Is water available all year?", text)
+        self.assertIn(self.prop.reference, text)
+        self.assertIn(self.prop.get_absolute_url(), text)
+        self.assertIn("Claudine Mukamana", text)
+        self.assertEqual(inq.device_info, "Android phone · Chrome")
+        self.assertTrue(inq.device_key and inq.client_ip)
+        # no code anywhere, and nothing about it on the public property page
+        InquiryMessage.objects.create(inquiry=inq, author=self.agent, body="Yes, there is a water tank.")
         stranger = self.client_class()
-        page = stranger.get(self.prop.get_absolute_url())
-        self.assertContains(page, "Is water available all year?")
-        self.assertContains(page, "Yes, there is a water tank.")
-        self.assertContains(page, "C. ·")  # initial only
-        for secret in ("Claudine", "Mukamana", "0788555444", "Secret budget question", pub.meeting_code):
-            self.assertNotContains(page, secret)
-        # the agent can always see it in the dashboard, to check what the client tells them
+        public = stranger.get(self.prop.get_absolute_url())
+        for secret in ("Claudine", "Is water available all year?", "Yes, there is a water tank.", "0788555444"):
+            self.assertNotContains(public, secret)
+        # the agent sees it in the dashboard, with a WhatsApp button to the client including the listing
         agent = self.client_class()
         agent.force_login(self.agent)
-        self.assertContains(agent.get(reverse("dashboard:inquiry_detail", args=[pub.pk])), pub.meeting_code)
-        other = Inquiry.objects.get(name="Old Client")
-        self.assertNotEqual(other.meeting_code, pub.meeting_code)
-        # agent can take it down again
-        self.login(self.agent)
-        self.client.post(reverse("dashboard:inquiry_detail", args=[pub.pk]), {"status": pub.status})
-        self.assertNotContains(stranger.get(self.prop.get_absolute_url()), "Is water available all year?")
+        detail = agent.get(reverse("dashboard:inquiry_detail", args=[inq.pk]))
+        self.assertContains(detail, "https://wa.me/250788555444?text=")
+        self.assertContains(detail, "Android phone")
+        # the property page's WhatsApp button also carries the listing's link
+        self.assertIn(self.prop.get_absolute_url(), unquote(page.context["whatsapp_url"]))
+
+    def test_whatsapp_number_formats(self):
+        from inquiries.device import whatsapp_number
+        for raw in ("0788 123 456", "+250 788 123 456", "250788123456", "788123456", "00250788123456"):
+            self.assertEqual(whatsapp_number(raw), "250788123456", raw)
+        self.assertEqual(whatsapp_number("12"), "")
 
     # ---------- who may manage a listing (edit / lock / delete) ----------
     def test_staff_bar_on_property_page(self):
@@ -343,7 +365,7 @@ class TheoPropertyTests(TestCase):
         prop.agent = self.agent
         prop.save()
         self.client.post(reverse("inquiries:submit", args=[prop.slug]),
-                         {"name": "Early Bird", "phone": "0788000444", "message": "Still available?"})
+                         {"on_whatsapp": "on", "name": "Early Bird", "phone": "0788000444", "message": "Still available?"})
         inq = Inquiry.objects.get(phone="0788000444")
         # only the property's agent (or an admin) may mark it
         other = self.client_class()
@@ -360,10 +382,10 @@ class TheoPropertyTests(TestCase):
         self.assertNotIn(prop.reference, str(self.client.get(reverse("properties:suggest"), {"q": prop.reference}).json()))
         page = self.client_class().get(prop.get_absolute_url())
         self.assertContains(page, "no longer available")
-        self.assertNotContains(page, "Send inquiry")
+        self.assertNotContains(page, "Send on WhatsApp")
         # new questions are refused; the open conversation was closed with a note to the client
         self.client.post(reverse("inquiries:submit", args=[prop.slug]),
-                         {"name": "Late", "phone": "0788000555", "message": "Can I see it?"})
+                         {"on_whatsapp": "on", "name": "Late", "phone": "0788000555", "message": "Can I see it?"})
         self.assertFalse(Inquiry.objects.filter(phone="0788000555").exists())
         inq.refresh_from_db()
         self.assertEqual(inq.status, "closed")
@@ -728,65 +750,43 @@ class TheoPropertyTests(TestCase):
             self.assertContains(r, 'id="galleryMain"')
             self.assertContains(r, 'id="galleryViewer"')
 
-    def test_conversations_page_opens_only_with_the_code(self):
+    def test_conversations_open_only_on_the_sending_device(self):
         page = reverse("inquiries:conversations")
         home = self.client.get(reverse("pages:home"))  # the button is there for every visitor
         self.assertContains(home, "messages-float")
-        self.assertContains(self.client.get(page), "Continue a conversation")
+        self.assertContains(self.client.get(page), "No conversations on this device")
         self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "Visitor", "phone": "0788000111", "message": "Is the garden fenced?"})
+                         {"on_whatsapp": "on", "name": "Visitor", "phone": "0788000111", "message": "Is the garden fenced?"})
         inq = Inquiry.objects.get(phone="0788000111")
         InquiryMessage.objects.create(inquiry=inq, body="Yes, fully fenced.")
-        # the sender can carry on right away; the badge shows the new reply
+        # same device: open straight away (no code), the badge shows the new reply
         self.assertContains(self.client.get(reverse("pages:home")), 'class="messages-badge">1<')
         r = self.client.get(page)
         self.assertContains(r, "Is the garden fenced?")
         self.assertContains(r, "Yes, fully fenced.")
+        self.assertNotContains(r, "meeting code")
         self.assertNotContains(self.client.get(reverse("pages:home")), "messages-badge")  # now read
-        # "Lock now": the conversation is hidden again and replying is refused until the code is given
-        self.client.post(reverse("inquiries:lock", args=[inq.pk]))
-        r = self.client.get(page + f"?c={inq.pk}")
-        self.assertContains(r, "This conversation is locked")
-        self.assertNotContains(r, "Yes, fully fenced.")
-        self.client.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "sneaky"})
-        self.assertFalse(InquiryMessage.objects.filter(body="sneaky").exists())
-        # a wrong code is refused; the right one (any case/spacing) opens it
-        self.client.post(reverse("inquiries:open"), {"inquiry": inq.pk, "code": "AAAAAA"})
-        self.assertNotContains(self.client.get(page + f"?c={inq.pk}"), "Yes, fully fenced.")
-        self.client.post(reverse("inquiries:open"), {"inquiry": inq.pk, "code": f" {inq.meeting_code.lower()} "})
-        self.assertContains(self.client.get(page + f"?c={inq.pk}"), "Yes, fully fenced.")
-        # a different device: nothing until the code is pasted, then the conversation and replying work
-        phone = self.client_class()
-        self.assertNotContains(phone.get(page), "Is the garden fenced?")
-        phone.post(reverse("inquiries:open"), {"code": inq.meeting_code})
-        self.assertContains(phone.get(page), "Yes, fully fenced.")
-        phone.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "Great, thanks!"})
+        # still there later, even after the session is gone (the device key is a long-lived cookie)
+        self.client.session.flush()
+        self.client.cookies.pop(settings.SESSION_COOKIE_NAME, None)
+        self.assertContains(self.client.get(page), "Yes, fully fenced.")
+        self.client.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "Great, thanks!"})
         self.assertTrue(InquiryMessage.objects.filter(inquiry=inq, body="Great, thanks!", from_client=True).exists())
-
-    def test_meeting_code_guessing_is_limited(self):
-        Inquiry.objects.create(property=self.prop, name="X", phone="0788000333", message="Hi")
-        target = Inquiry.objects.get(phone="0788000333")
-        guesser = self.client_class()
-        for _ in range(12):
-            guesser.post(reverse("inquiries:open"), {"code": "ZZZZZZ"})
-        guesser.post(reverse("inquiries:open"), {"code": target.meeting_code})  # even the right code: blocked now
-        self.assertNotContains(guesser.get(reverse("inquiries:conversations")), "Hi</div>")
-
-    def test_unlock_expires(self):
-        from inquiries import views as iv
-        self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "Visitor", "phone": "0788000111", "message": "Still there?"})
-        inq = Inquiry.objects.get(phone="0788000111")
-        session = self.client.session
-        session[iv.UNLOCK_KEY] = {str(inq.pk): session[iv.UNLOCK_KEY][str(inq.pk)] - iv.UNLOCK_SECONDS - 1}
-        session.save()
-        self.assertContains(self.client.get(reverse("inquiries:conversations") + f"?c={inq.pk}"),
-                            "This conversation is locked")
+        # another device (even on the same network / IP) sees nothing and can't write into it
+        other = self.client_class()
+        r = other.get(page + f"?c={inq.pk}")
+        self.assertNotContains(r, "Is the garden fenced?")
+        self.assertNotContains(r, "Yes, fully fenced.")
+        self.assertEqual(other.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "sneaky"}).status_code, 404)
+        # a made-up device cookie doesn't help either
+        other.cookies["tp_device"] = "x" * 43
+        self.assertNotContains(other.get(page), "Is the garden fenced?")
+        self.assertFalse(InquiryMessage.objects.filter(body="sneaky").exists())
 
     def test_client_requests_only_visible_to_their_agent(self):
         """A client's inquiry / visit request goes to the property's agent only, never to other agents."""
         self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "Private Client", "phone": "0788000111", "email": "pc@example.com",
+                         {"on_whatsapp": "on", "name": "Private Client", "phone": "0788000111", "email": "pc@example.com",
                           "message": "I want to buy this."})
         inq = Inquiry.objects.get(name="Private Client")
         appt = Appointment.objects.create(property=self.prop, name="Private Visitor", phone="0788000222",
@@ -1004,30 +1004,50 @@ class TheoPropertyTests(TestCase):
         self.assertEqual(len(zipfile.ZipFile(BytesIO(r.content)).namelist()), 2)
 
     # ---------- hot deals / trending / new ----------
-    def test_hot_deals_detected_against_local_market(self):
-        hot = Property.objects.get(title__startswith="Spacious family house in Kimironko")
-        self.assertTrue(hot.is_hot_deal)
-        self.assertGreaterEqual(hot.deal_percent, 10)
-        self.assertGreater(hot.market_price, hot.price)
-        # normally priced neighbours are not deals
-        self.assertFalse(Property.objects.get(title="3-bedroom house in Kimironko").is_hot_deal)
-        # Huye studio is cheap, but there are no similar listings in Huye -> no verdict
-        huye = Property.objects.get(title__startswith="Studio apartment near University")
-        self.assertIsNone(huye.deal_percent)
-        self.assertFalse(huye.is_hot_deal)
-
-    def test_price_change_updates_deal_automatically(self):
-        p = Property.objects.get(title="3-bedroom house in Kimironko")
-        with self.captureOnCommitCallbacks(execute=True):
-            p.price = 60_000_000  # ~30% below the area's price per m²
-            p.save()
-        p.refresh_from_db()
-        self.assertTrue(p.is_hot_deal)
-        with self.captureOnCommitCallbacks(execute=True):
-            p.availability = Property.Availability.SOLD
-            p.save()
-        p.refresh_from_db()
-        self.assertFalse(p.is_hot_deal)  # sold properties aren't promoted
+    def test_admin_picks_hot_deals_for_a_set_time(self):
+        old = Property.objects.get(title="3-bedroom house in Kimironko")
+        Property.objects.filter(pk=old.pk).update(listed_at=timezone.now() - timedelta(days=75))  # posted 2.5 months ago
+        url = reverse("dashboard:property_hot_deal", args=[old.pk])
+        # agents can't, admins can
+        self.login(self.agent)
+        self.assertEqual(self.client.post(url, {"days": "7"}).status_code, 403)
+        self.login(self.admin)
+        self.assertContains(self.client.get(reverse("dashboard:property_edit", args=[old.pk])), "Make it a hot deal")
+        price = old.price
+        self.client.post(url, {"days": "7"})
+        old.refresh_from_db()
+        self.assertTrue(old.is_hot_deal)
+        self.assertEqual(old.price, price)  # no discount: the price is never touched
+        self.assertAlmostEqual((old.hot_deal_until - timezone.now()).total_seconds(), 7 * 86400, delta=60)
+        # shown first on the website despite its age, labelled "Hot deal" (no "% below market")
+        r = self.client_class().get(reverse("properties:list"))
+        self.assertEqual(list(r.context["page_obj"])[0].is_hot_deal, True)
+        self.assertIn(old, list(r.context["page_obj"])[:2])
+        self.assertNotContains(r, "below market")
+        self.assertIn(old, list(self.client_class().get(reverse("pages:home")).context["hot_deals"]))
+        # an end date instead of a number of days
+        day = (timezone.localdate() + timedelta(days=20)).isoformat()
+        self.client.post(url, {"days": "7", "until": day})
+        old.refresh_from_db()
+        self.assertEqual(timezone.localtime(old.hot_deal_until).date().isoformat(), day)
+        # out-of-range end dates are refused
+        self.client.post(url, {"until": (timezone.localdate() - timedelta(days=1)).isoformat()})
+        old.refresh_from_db()
+        self.assertEqual(timezone.localtime(old.hot_deal_until).date().isoformat(), day)
+        # when the time is over, it is an ordinary listing again
+        Property.objects.filter(pk=old.pk).update(hot_deal_until=timezone.now() - timedelta(minutes=1))
+        old.refresh_from_db()
+        self.assertFalse(old.is_hot_deal)
+        self.assertNotIn(old, list(self.client_class().get(reverse("properties:deals")).context["page_obj"]))
+        # stop now; sold listings are never hot deals
+        self.client.post(url, {"days": "7"})
+        self.client.post(url, {"action": "stop"})
+        old.refresh_from_db()
+        self.assertIsNone(old.hot_deal_until)
+        self.client.post(url, {"days": "7"})
+        Property.objects.filter(pk=old.pk).update(availability=Property.Availability.SOLD)
+        old.refresh_from_db()
+        self.assertFalse(old.is_hot_deal)
 
     def test_recommended_order_and_pages(self):
         r = self.client.get(reverse("properties:list"))
@@ -1035,7 +1055,7 @@ class TheoPropertyTests(TestCase):
         hot_flags = [p.is_hot_deal for p in props]
         self.assertTrue(hot_flags[0])
         self.assertEqual(hot_flags, sorted(hot_flags, reverse=True))  # all hot deals come first
-        self.assertContains(r, "below market")
+        self.assertContains(r, "Hot deal")
         # visitor's own sort still wins
         r = self.client.get(reverse("properties:list"), {"sort": "-price"})
         prices = [p.price for p in r.context["page_obj"]]
@@ -1043,7 +1063,7 @@ class TheoPropertyTests(TestCase):
         # hot deals page
         r = self.client.get(reverse("properties:deals"))
         self.assertTrue(all(p.is_hot_deal for p in r.context["page_obj"]))
-        self.assertEqual(r.context["page_obj"].paginator.count, Property.objects.filter(is_hot_deal=True).count())
+        self.assertEqual(r.context["page_obj"].paginator.count, Property.objects.filter(Property.hot_deal_q()).count())
         # home page sections
         r = self.client.get(reverse("pages:home"))
         self.assertTrue(r.context["hot_deals"])
@@ -1051,8 +1071,44 @@ class TheoPropertyTests(TestCase):
         self.assertContains(r, "Hot deals")
         self.assertContains(r, "Trending now")
         self.assertContains(r, "Just listed")
-        hot = Property.objects.filter(is_hot_deal=True).first()
-        self.assertContains(self.client.get(hot.get_absolute_url()), "below market")
+        hot = Property.objects.filter(Property.hot_deal_q()).first()
+        self.assertContains(self.client.get(hot.get_absolute_url()), "Hot deal")
+
+    def test_month_old_listing_reminder_and_repost(self):
+        from properties.reminders import send_reminders
+        prop = self.prop
+        Property.objects.filter(pk=prop.pk).update(listed_at=timezone.now() - timedelta(days=31))
+        mail.outbox = []
+        self.assertGreaterEqual(send_reminders(), 1)
+        note = Notification.objects.filter(user=self.agent, title__startswith=f"Check your listing: {prop.reference}")
+        self.assertTrue(note.exists())
+        self.assertTrue(any(self.agent.email in m.to for m in mail.outbox))
+        # not again the next day; again after a week if nothing was done
+        n = note.count()
+        send_reminders()
+        self.assertEqual(note.count(), n)
+        Property.objects.filter(pk=prop.pk).update(reminder_sent_at=timezone.now() - timedelta(days=8))
+        send_reminders()
+        self.assertEqual(note.count(), n + 1)
+        # the agent sees it on the dashboard and on the listing, and reposts it
+        self.login(self.agent)
+        self.assertContains(self.client.get(reverse("dashboard:home")), prop.reference)
+        self.assertContains(self.client.get(reverse("dashboard:properties"), {"assigned": "check"}), prop.reference)
+        self.assertContains(self.client.get(reverse("dashboard:property_edit", args=[prop.pk])), "Repost (still on offer)")
+        self.client.post(reverse("dashboard:property_repost", args=[prop.pk]))
+        prop.refresh_from_db()
+        self.assertTrue(prop.is_new)
+        self.assertNotIn(prop, list(self.client.get(reverse("dashboard:properties"), {"assigned": "check"}).context["page_obj"]))
+        send_reminders()
+        self.assertEqual(note.count(), n + 1)
+        # another agent can't repost it
+        self.login(self.agent2)
+        self.assertEqual(self.client.post(reverse("dashboard:property_repost", args=[prop.pk])).status_code, 403)
+        # listings with no active agent: the admins are reminded
+        Property.objects.filter(pk=prop.pk).update(listed_at=timezone.now() - timedelta(days=40), agent=None,
+                                                   reminder_sent_at=None)
+        send_reminders()
+        self.assertTrue(Notification.objects.filter(user=self.admin, title__startswith=f"Check your listing: {prop.reference}").exists())
 
     def test_featured_boosts_trending(self):
         from properties.ranking import refresh_scores
@@ -1220,7 +1276,7 @@ class TheoPropertyTests(TestCase):
 
     def test_client_and_agent_keep_talking(self):
         self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "Visitor", "email": "v@example.com", "phone": "0788000111", "message": "Hi"})
+                         {"on_whatsapp": "on", "name": "Visitor", "email": "v@example.com", "phone": "0788000111", "message": "Hi"})
         inq = Inquiry.objects.get(phone="0788000111")
         visitor = self.client
         # agent replies twice over time
@@ -1304,7 +1360,7 @@ class SecurityTests(TestCase):
 
     def test_html_and_scripts_are_not_stored(self):
         self.client.post(reverse("inquiries:submit", args=[self.prop.slug]),
-                         {"name": "<script>alert(1)</script>Eric​", "phone": "0788000111",
+                         {"on_whatsapp": "on", "name": "<script>alert(1)</script>Eric​", "phone": "0788000111",
                           "email": "e@example.com", "message": "Is <b>it</b> free? Price < 5M"})
         inq = Inquiry.objects.latest("pk")
         self.assertEqual(inq.name, "alert(1)Eric")
@@ -1349,7 +1405,7 @@ class SecurityTests(TestCase):
         self.assertIn("_auth_user_id", self.client.session)
 
     def test_public_forms_are_rate_limited(self):
-        data = {"name": "Spam", "phone": "0788000111", "email": "s@example.com", "message": "buy"}
+        data = {"name": "Spam", "phone": "0788000111", "email": "s@example.com", "message": "buy", "on_whatsapp": "on"}
         for _ in range(12):
             self.client.post(reverse("inquiries:submit", args=[self.prop.slug]), data)
         self.assertEqual(Inquiry.objects.filter(name="Spam").count(), 10)

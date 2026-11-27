@@ -72,6 +72,30 @@
         </tbody></table></div>
     </div>
   </div>
+  {% if to_check %}
+  <div class="col-12">
+    <div class="dash-card">
+      <div class="card-head"><h6><i class="fa-solid fa-calendar-check text-warning me-1"></i>Listings online over {{ check_days }} days: repost or remove ({{ to_check_count }})</h6>
+        <a href="{% url 'dashboard:properties' %}?assigned=check" class="btn btn-sm btn-light">See all</a></div>
+      <div class="table-responsive"><table class="table table-tp">
+        <thead><tr><th>Property</th><th>Online</th><th>Clients last month</th><th>Agent</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+        {% for p in to_check %}
+          <tr><td><div class="fw-semibold">{{ p.title|truncatechars:40 }}</div><div class="small text-muted">{{ p.reference }} · {{ p.views }} views</div></td>
+            <td class="small text-nowrap">{{ p.listed_days }} days</td>
+            <td class="small">{% if p.recent_inquiries or p.recent_visits %}{{ p.recent_inquiries }} message{{ p.recent_inquiries|pluralize }} · {{ p.recent_visits }} visit{{ p.recent_visits|pluralize }}{% else %}<span class="text-danger">Nobody reached out</span>{% endif %}</td>
+            <td class="small">{{ p.agent|default:"–" }}</td>
+            <td class="text-end text-nowrap">
+              {% if user.is_admin_role or p.agent == user %}
+              <form method="post" action="{% url 'dashboard:property_repost' p.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-success" title="Repost: still on offer"><i class="fa-solid fa-rotate me-1"></i>Repost</button></form>
+              {% endif %}
+              <a href="{% url 'dashboard:property_edit' p.pk %}" class="btn btn-sm btn-light">Check</a></td></tr>
+        {% endfor %}
+        </tbody></table></div>
+    </div>
+  </div>
+  {% endif %}
   {% if pending_properties %}
   <div class="col-12">
     <div class="dash-card">

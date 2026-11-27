@@ -7,11 +7,7 @@
   <span class="status-pill st-{{ property.approval_status }}">{{ property.get_approval_status_display }}</span>
   {% if property.source == 'website' %}<span class="badge bg-green-soft text-green">Owner submission</span>{% endif %}
   <span class="small text-muted">Agent: {{ property.agent|default:"not assigned yet" }}</span>
-  {% if property.deal_percent is not None %}
-    {% if property.is_hot_deal %}<span class="badge badge-hot"><i class="fa-solid fa-fire"></i> Hot deal · {{ property.deal_percent }}% below market</span>
-    {% elif property.deal_percent < 0 %}<span class="small text-muted" title="Typical price of similar listings nearby">Priced {{ property.deal_percent|stringformat:"d"|cut:"-" }}% above market (~{{ property.market_price|floatformat:0 }} {{ property.currency }})</span>
-    {% else %}<span class="small text-muted" title="Typical price of similar listings nearby">Market price ~{{ property.market_price|floatformat:0 }} {{ property.currency }}</span>{% endif %}
-  {% endif %}
+  {% if property.is_hot_deal %}<span class="badge badge-hot"><i class="fa-solid fa-fire"></i> Hot deal until {{ property.hot_deal_until|date:"d M Y H:i" }}</span>{% endif %}
   {% if property.rejection_reason %}<span class="small text-danger">Reason: {{ property.rejection_reason }}</span>{% endif %}
   <div class="ms-auto d-flex flex-wrap gap-2">
     {% if property.agent == user or user.is_admin_role and property.agent %}
@@ -37,6 +33,50 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
+
+{% if property %}
+{% if check %}
+<div class="alert alert-warning d-flex flex-wrap gap-3 align-items-center" role="alert">
+  <i class="fa-solid fa-calendar-check fa-lg"></i>
+  <div class="flex-grow-1" style="min-width:240px"><strong>This listing has been online for {{ property.listed_days }} days.</strong>
+    {{ check_advice }}
+    <div class="small mt-1">Last month: {{ check.recent_inquiries }} message{{ check.recent_inquiries|pluralize }}, {{ check.recent_visits }} visit request{{ check.recent_visits|pluralize }} · {{ property.views }} views in total.</div></div>
+  {% if can_manage %}
+  <div class="d-flex flex-wrap gap-2">
+    <form method="post" action="{% url 'dashboard:property_repost' property.pk %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-sm btn-success"><i class="fa-solid fa-rotate me-1"></i>Repost (still on offer)</button></form>
+    {% include "dashboard/properties/_taken_button.html" with p=property next=request.path %}
+    <form method="post" action="{% url 'dashboard:property_status' property.pk 'inactive' %}" data-confirm="Remove {{ property.reference }} from the website?">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-eye-slash me-1"></i>Remove from website</button></form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% if user.is_admin_role and property.approval_status == 'approved' and property.availability == 'available' %}
+<div class="dash-card mb-3"><div class="card-head"><h6><i class="fa-solid fa-fire me-1" style="color:#d9480f"></i>Hot deal</h6>
+  {% if property.is_hot_deal %}<span class="badge badge-hot">Until {{ property.hot_deal_until|date:"d M Y H:i" }}</span>{% endif %}</div>
+  <div class="card-body-tp">
+    <p class="small text-muted mb-2">Show this listing at the top of the website as a hot deal, whenever it was posted, until the date you choose. The price stays exactly as it is.</p>
+    <form method="post" action="{% url 'dashboard:property_hot_deal' property.pk %}" class="d-flex flex-wrap gap-2 align-items-end">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <div><label class="form-label small mb-1" for="hotDays">For</label>
+        <select name="days" id="hotDays" class="form-select form-select-sm">
+          <option value="3">3 days</option><option value="7" selected>1 week</option><option value="14">2 weeks</option>
+          <option value="30">1 month</option><option value="60">2 months</option><option value="90">3 months</option>
+        </select></div>
+      <div><label class="form-label small mb-1" for="hotUntil">or until</label>
+        <input type="date" name="until" id="hotUntil" class="form-control form-control-sm" min="{{ today|date:'Y-m-d' }}"></div>
+      <button class="btn btn-sm btn-hot"><i class="fa-solid fa-fire me-1"></i>{% if property.is_hot_deal %}Change end date{% else %}Make it a hot deal{% endif %}</button>
+    </form>
+    {% if property.is_hot_deal %}
+    <form method="post" action="{% url 'dashboard:property_hot_deal' property.pk %}" class="mt-2">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}"><input type="hidden" name="action" value="stop">
+      <button class="btn btn-sm btn-light">Stop hot deal now</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 {% endif %}
 
 <form method="post" enctype="multipart/form-data" id="propertyForm" novalidate>{% csrf_token %}

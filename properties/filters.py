@@ -29,7 +29,7 @@ class PropertyFilter(django_filters.FilterSet):
     max_size = django_filters.NumberFilter(field_name="size_sqm", lookup_expr="lte", label="Max size (m²)")
     category = django_filters.CharFilter(field_name="category__slug")
     sort = django_filters.OrderingFilter(
-        fields=(("created_at", "created_at"), ("price", "price"), ("size_sqm", "size_sqm"), ("views", "views")),
+        fields=(("listed_at", "created_at"), ("price", "price"), ("size_sqm", "size_sqm"), ("views", "views")),
         choices=SORT_CHOICES, empty_label="Sort by", label="Sort",
     )
 

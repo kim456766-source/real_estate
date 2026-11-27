@@ -77,10 +77,9 @@
   <div class="deal-banner mb-4" role="note">
     <i class="fa-solid fa-fire fa-2x"></i>
     <div>
-      <div class="fw-bold fs-5">Hot deal: {{ property.deal_percent }}% below market</div>
-      <div>Similar {{ property.get_property_type_display|lower }}s {{ property.get_purpose_display|lower }} nearby are typically around
-        <strong>{{ property.market_price|floatformat:0|intcomma }} {{ property.currency }}</strong>{% if property.size_sqm %} for this size{% endif %}.
-        Good deals go fast. <a href="#contact">Message the agent</a>.</div>
+      <div class="fw-bold fs-5">Hot deal</div>
+      <div>Our team has picked this {{ property.get_property_type_display|lower }} as one to see now.
+        <a href="#contact">Message the agent on WhatsApp</a>.</div>
     </div>
   </div>
   {% endif %}
@@ -160,7 +159,7 @@
         <div class="col-md-6"><strong>Sector / area:</strong> {{ property.sector|default:"–" }}{% if property.village %} / {{ property.village }}{% endif %}</div>
         {% if property.year_built %}<div class="col-md-6"><strong>Year built:</strong> {{ property.year_built }}</div>{% endif %}
         <div class="col-md-6"><strong>Furnished:</strong> {{ property.furnished|yesno:"Yes,No" }}</div>
-        <div class="col-md-6"><strong>Listed:</strong> {{ property.created_at|date:"d M Y" }}</div>
+        <div class="col-md-6"><strong>Listed:</strong> {{ property.listed_at|date:"d M Y" }}</div>
       </div>
 
       {% if property.amenity_list %}
@@ -174,33 +173,6 @@
       <h4 class="mt-4">Location</h4>
       <div id="map" class="mb-2"></div>
       <a class="small" target="_blank" rel="noopener" href="https://www.google.com/maps?q={{ property.latitude }},{{ property.longitude }}"><i class="fa-solid fa-diamond-turn-right me-1"></i>Open in Google Maps</a>
-      {% endif %}
-
-      <h4 class="mt-5" id="questions"><i class="fa-regular fa-comments me-2" style="color:#d97757"></i>Questions &amp; answers</h4>
-      {% if public_qa %}
-      <p class="text-muted small">What other visitors asked about this property, and what the agent answered.</p>
-      <div class="d-flex flex-column gap-3">
-        {% for q in public_qa %}
-        <div class="border rounded-3 p-3">
-          <div class="chat-thread">
-            <div class="chat-msg theirs">
-              <div class="chat-meta">{{ q.public_name }} · {{ q.created_at|date:"d M Y" }}</div>
-              <div class="chat-bubble">{{ q.message }}</div>
-            </div>
-            {% for m in q.thread.all %}
-            <div class="chat-msg {% if m.from_client %}theirs{% else %}mine{% endif %}">
-              <div class="chat-meta">{% if m.from_client %}{{ q.public_name }}{% else %}<i class="fa-solid fa-circle-check text-green me-1"></i>{{ m.author|default:"Agent" }} (agent){% endif %} · {{ m.created_at|date:"d M Y" }}</div>
-              <div class="chat-bubble">{{ m.body }}</div>
-            </div>
-            {% empty %}
-            <div class="small text-muted"><i class="fa-regular fa-clock me-1"></i>Waiting for the agent's answer.</div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-muted small">{% if property.is_taken %}No questions were asked about this property.{% else %}No questions yet. Be the first to ask the agent using <a href="#contact">Send a message</a>.{% endif %}</p>
       {% endif %}
     </div>
 
@@ -233,14 +205,16 @@
           {% with phone=person.phone|default:site.phone %}
           <div class="d-grid gap-2 mb-3">
             <a href="tel:{{ phone|cut:' ' }}" class="btn btn-outline-primary"><i class="fa-solid fa-phone me-1"></i>{{ phone }}</a>
-            <a href="https://wa.me/{% if person.phone %}{{ person.phone|cut:'+'|cut:' ' }}{% else %}{{ site.whatsapp }}{% endif %}?text={{ 'Hello, I am interested in '|urlencode }}{{ property.title|urlencode }}%20({{ property.reference }})" target="_blank" rel="noopener" class="btn btn-success"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>
+            {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="btn btn-success"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>{% endif %}
           </div>
           {% endwith %}
-          <h6 class="fw-bold">Send a message</h6>
+          <h6 class="fw-bold mb-1">Send a message</h6>
+          <p class="small text-muted mb-2"><i class="fa-brands fa-whatsapp me-1 text-success"></i>Your message and this listing's link open in WhatsApp,
+            so you can chat with the agent there. Make sure the number you enter is registered on WhatsApp.</p>
           <form method="post" action="{% url 'inquiries:submit' property.slug %}">{% csrf_token %}
             {% include "partials/form_fields.html" with form=inquiry_form col="col-12" %}
-            <button class="btn btn-primary w-100 mt-3"><i class="fa-regular fa-paper-plane me-1"></i>Send inquiry</button>
-            <div class="small text-muted mt-2"><i class="fa-solid fa-lock me-1"></i>Your phone stays private.</div>
+            <button class="btn btn-success w-100 mt-3"><i class="fa-brands fa-whatsapp me-1"></i>Send on WhatsApp</button>
+            <div class="small text-muted mt-2"><i class="fa-solid fa-lock me-1"></i>Private: only you and the agent see your message. It is also saved under "Agent replies" on this phone or computer.</div>
           </form>
         </div>
         {% endwith %}

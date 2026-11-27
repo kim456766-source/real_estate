@@ -1,16 +1,13 @@
-import secrets
-
 from django.conf import settings
 from django.db import models
 
 from core.models import TimeStampedModel
 
 
-CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L: easy to read out over the phone
-
-
 def new_meeting_code():
-    return "".join(secrets.choice(CODE_ALPHABET) for _ in range(6))
+    """Meeting codes are no longer used; this stays only because old migrations (0006, 0007) import it."""
+    import secrets
+    return "".join(secrets.choice("ABCDEFGHJKMNPQRSTUVWXYZ23456789") for _ in range(6))
 
 
 class Inquiry(TimeStampedModel):
@@ -32,13 +29,12 @@ class Inquiry(TimeStampedModel):
                                        related_name="assigned_inquiries", limit_choices_to={"role": "agent"})
     response = models.TextField(blank=True)
     responded_at = models.DateTimeField(null=True, blank=True)
-    # Shown on the property page as public Q&A (first name only, never phone/email). New website inquiries
-    # are public; agents/admins can hide or show them. Older conversations stay private.
-    is_public = models.BooleanField(default=False, db_index=True)
-    # Private proof of identity: shown only to the client (their "Agent replies" panel) and to staff.
-    # Before meeting, the agent asks for it, so nobody can pretend to be this client.
-    # It is also the key the client pastes to open the conversation on "My conversations", so it is unique.
-    meeting_code = models.CharField(max_length=6, default=new_meeting_code, editable=False, unique=True)
+    # Private to the client and the agent. The client's side opens only on the device that sent it:
+    # a random key kept in that browser (cookie), stored here hashed. (Not the IP address: on mobile
+    # networks many people share one IP, and a phone's IP changes between Wi-Fi and mobile data.)
+    device_key = models.CharField(max_length=64, blank=True, db_index=True, editable=False)
+    client_ip = models.GenericIPAddressField(null=True, blank=True, editable=False)
+    device_info = models.CharField(max_length=120, blank=True, editable=False)  # e.g. "Android phone · Chrome"
 
     class Meta:
         ordering = ["-created_at"]
@@ -46,17 +42,6 @@ class Inquiry(TimeStampedModel):
 
     def __str__(self):
         return f"Inquiry #{self.pk} on {self.property.reference}"
-
-    def save(self, *args, **kwargs):
-        if not self.pk:  # (very rare) clash with an existing code: pick another
-            while Inquiry.objects.filter(meeting_code=self.meeting_code).exists():
-                self.meeting_code = new_meeting_code()
-        super().save(*args, **kwargs)
-
-    def public_name(self):  # (a plain method: the "property" field shadows the @property decorator here)
-        """What other visitors see: an initial only ("K."), so there is no name to pretend to be."""
-        name = (self.name or "").strip()
-        return f"{name[0].upper()}." if name else "A client"
 
 
 class InquiryMessage(models.Model):

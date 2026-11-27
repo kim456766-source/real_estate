@@ -31,7 +31,8 @@ class NoCachePrivatePagesMiddleware:
 
 class HousekeepingMiddleware:
     """Daily clean-up jobs that need no server scheduler: the first request of the day runs them
-    (old conversations are deleted after a month, see inquiries/cleanup.py). Never breaks a page."""
+    (old conversations are deleted after a month, see inquiries/cleanup.py; month-old listings are
+    flagged to their agent, see properties/reminders.py). Never breaks a page."""
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -40,7 +41,9 @@ class HousekeepingMiddleware:
         response = self.get_response(request)
         try:
             from inquiries.cleanup import purge_if_due
+            from properties.reminders import remind_if_due
             purge_if_due()
+            remind_if_due()  # listings online for a month: remind the agent / admins to check them
         except Exception:  # housekeeping must never affect the visitor
             logging.getLogger("theo.housekeeping").exception("Daily clean-up failed")
         return response

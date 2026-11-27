@@ -1,4 +1,4 @@
-"""Keep hot deals / trending up to date when listings, prices or client interest change."""
+"""Keep trending scores up to date when listings or client interest change (hot deals are picked by admins)."""
 from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver

@@ -2,7 +2,7 @@
 {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
 <div class="row g-3">
 {% for field in form.visible_fields %}
-  <div class="{% if field.field.widget.input_type == 'checkbox' %}col-md-6 col-lg-4{% elif field.name in wide_fields or field.field.widget.attrs.rows %}col-12{% else %}{{ col|default:'col-md-6' }}{% endif %}">
+  <div class="{% if field.field.widget.input_type == 'checkbox' %}{{ col|default:'col-md-6 col-lg-4' }}{% elif field.name in wide_fields or field.field.widget.attrs.rows %}col-12{% else %}{{ col|default:'col-md-6' }}{% endif %}">
     {% if field.field.widget.input_type == 'checkbox' %}
       <div class="form-check mt-2">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
     {% else %}

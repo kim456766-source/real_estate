@@ -5,9 +5,6 @@
       <img src="{% static 'img/logo.png' %}" alt="" class="brand-logo" width="78" height="40">
       <span class="brand-text">Theo<span class="text-green">Property</span></span>
     </a>
-    <button type="button" class="search-toggle ms-auto me-2 order-xl-last ms-xl-2 me-xl-0" aria-controls="siteSearch"
-            aria-expanded="false" aria-label="Search properties" title="Search properties">
-      <i class="fa-solid fa-magnifying-glass"></i></button>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-label="Menu">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -28,11 +25,9 @@
           <i class="fa-regular fa-heart"></i>
           {% if fav_ids %}<span class="badge rounded-pill bg-danger notif-badge">{{ fav_ids|length }}</span>{% endif %}
         </a>
+        {# Sign In is not in the header (only agents and admins use it): it is at the bottom of the page, in the footer #}
         {% if user.is_authenticated and user.uses_dashboard %}
           <a href="{% url 'accounts:after_login' %}" class="btn btn-outline-primary btn-staff"><i class="fa-regular fa-user me-1"></i>My account</a>
-        {% else %}
-          <a href="{% url 'accounts:login' %}" class="btn btn-outline-primary btn-staff"
-             {% if request.resolver_match.view_name != "accounts:login" %}data-bs-toggle="modal" data-bs-target="#signInModal"{% endif %}><i class="fa-solid fa-right-to-bracket me-1"></i>Sign In</a>
         {% endif %}
       </div>
     </div>
@@ -46,16 +41,15 @@
   </div>
 </div>
 {% endif %}
-{# Search panel: opens (centred, under the owner bar) when the search button is clicked. Open on results pages. #}
-{% with open=request.GET.q %}
-<div class="search-panel-wrap{% if open and ns == 'properties' %} open{% endif %}" id="siteSearch" {% if not open or ns != 'properties' %}hidden{% endif %}>
+{# Search: always shown, centred under the owner bar #}
+<div class="search-panel-wrap" id="siteSearch">
   <div class="container">
     <form class="live-search" action="{% url 'properties:list' %}" method="get" role="search"
           data-suggest-url="{% url 'properties:suggest' %}" data-list-url="{% url 'properties:list' %}" autocomplete="off">
       <div class="live-search-box">
         <i class="fa-solid fa-magnifying-glass live-search-icon" aria-hidden="true"></i>
         <input type="search" name="q" value="{% if ns == 'properties' %}{{ request.GET.q }}{% endif %}" maxlength="80"
-               placeholder="Search houses, apartments, plots, places… e.g. house Kimironko"
+               placeholder="Search a house, apartment, plot or place, e.g. house Kimironko"
                aria-label="Search properties" role="combobox" aria-autocomplete="list" aria-expanded="false"
                aria-controls="liveSearchList" enterkeyhint="search" spellcheck="false">
         <button type="button" class="live-search-clear" aria-label="Clear search" hidden><i class="fa-solid fa-xmark"></i></button>
@@ -65,5 +59,4 @@
     </form>
   </div>
 </div>
-{% endwith %}
 {% endwith %}

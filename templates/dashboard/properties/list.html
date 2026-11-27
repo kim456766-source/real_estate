@@ -1,6 +1,6 @@
 {% extends "dashboard/base.html" %}
 {% load humanize %}
-{% block page_title %}{% if not user.is_admin_role %}My listings{% elif assigned == 'unclaimed' %}Unassigned submissions{% else %}All properties{% endif %}{% endblock %}
+{% block page_title %}{% if not user.is_admin_role %}My listings{% elif assigned == 'unclaimed' %}Unassigned submissions{% elif assigned == 'check' %}Listings to check{% elif assigned == 'hot' %}Hot deals{% else %}All properties{% endif %}{% endblock %}
 {% block content %}
 <div class="dash-card">
   <div class="card-head">
@@ -10,6 +10,8 @@
         <option value="">{% if user.is_admin_role %}All properties{% else %}All my listings{% endif %}</option>
         {% if user.is_admin_role %}<option value="unclaimed" {% if assigned == 'unclaimed' %}selected{% endif %}>Unassigned (no agent)</option>{% endif %}
         <option value="submissions" {% if assigned == 'submissions' %}selected{% endif %}>Owner submissions</option>
+        <option value="check" {% if assigned == 'check' %}selected{% endif %}>Online over a month (to check)</option>
+        <option value="hot" {% if assigned == 'hot' %}selected{% endif %}>Hot deals</option>
       </select>
       <select name="status" class="form-select" onchange="this.form.submit()">
         <option value="">Any status</option>
@@ -32,7 +34,7 @@
           <td><div class="fw-semibold">{{ p.title|truncatechars:38 }}</div>
             <div class="small text-muted">{{ p.reference }} · {{ p.get_property_type_display }} · {{ p.sector|default:p.district }}{% if p.is_featured %} · <i class="fa-solid fa-star text-warning"></i>{% endif %}
               {% if p.source == 'website' %}<span class="badge bg-green-soft text-green ms-1">Owner submission</span>{% endif %}
-              {% if p.is_hot_deal %}<span class="badge badge-hot ms-1"><i class="fa-solid fa-fire"></i> {{ p.deal_percent }}% below</span>{% endif %}
+              {% if p.is_hot_deal %}<span class="badge badge-hot ms-1" title="Until {{ p.hot_deal_until|date:'d M Y H:i' }}"><i class="fa-solid fa-fire"></i> Hot deal</span>{% endif %}
               {% if p.is_trending %}<span class="badge badge-trending ms-1"><i class="fa-solid fa-arrow-trend-up"></i> Trending</span>{% endif %}
               {% if p.is_new %}<span class="badge badge-new ms-1">New</span>{% endif %}</div></td>
           <td class="small text-nowrap">{{ p.price|floatformat:0|intcomma }} {{ p.currency }}<div class="text-muted">{{ p.get_purpose_display }}</div></td>

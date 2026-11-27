@@ -125,30 +125,6 @@
     });
   }
 
-  // Small search button in the top bar: opens / closes the search panel under the owner bar
-  const searchToggle = document.querySelector(".search-toggle");
-  const searchPanel = document.getElementById("siteSearch");
-  if (searchToggle && searchPanel) {
-    const searchInput = searchPanel.querySelector("input[name=q]");
-    const setOpen = function (open) {
-      searchPanel.hidden = !open;
-      searchToggle.setAttribute("aria-expanded", open ? "true" : "false");
-      if (open) {
-        // Bring the panel into view only if it is above the screen (the visitor asked for it by clicking)
-        const top = searchPanel.getBoundingClientRect().top;
-        const navH = (document.querySelector(".tp-navbar") || {}).offsetHeight || 0;
-        if (top < navH) window.scrollTo({ top: Math.max(window.scrollY + top - navH - 10, 0), behavior: "smooth" });
-        searchInput.focus({ preventScroll: true });
-      }
-    };
-    searchToggle.setAttribute("aria-expanded", searchPanel.hidden ? "false" : "true");
-    searchToggle.addEventListener("click", () => setOpen(searchPanel.hidden));
-    searchInput.addEventListener("keydown", function (e) {
-      const list = searchPanel.querySelector(".live-search-list");
-      if (e.key === "Escape" && list.hidden && !searchInput.value) { setOpen(false); searchToggle.focus(); }
-    });
-  }
-
   // Live search: suggestions while typing (places + properties), keyboard friendly. No search history is kept.
   try { localStorage.removeItem("tp_recent_searches"); } catch (e) {}  // wipe history saved by the earlier version
   document.querySelectorAll(".live-search").forEach(function (form) {

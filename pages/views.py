@@ -13,9 +13,9 @@ def home(request):
     refresh_if_stale()
     props = public_properties()
     available = props.filter(availability=Property.Availability.AVAILABLE)
-    hot_deals = available.filter(is_hot_deal=True).order_by("-deal_percent")[:8]
+    hot_deals = available.filter(Property.hot_deal_q()).order_by("hot_deal_until")[:8]  # picked by admins
     trending = available.filter(trend_score__gt=0).order_by("-trend_score")[:8]   # featured get a boost
-    just_listed = available.order_by("-created_at")[:8]
+    just_listed = available.order_by("-listed_at")[:8]
     categories = Category.objects.annotate(
         n=Count("properties", filter=Q(properties__approval_status=Property.Approval.APPROVED)))
     stats = {

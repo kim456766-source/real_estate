@@ -2,6 +2,7 @@ from django import forms
 
 from accounts.forms import BootstrapFormMixin
 
+from .device import whatsapp_number
 from .models import ContactMessage, Inquiry
 
 
@@ -9,12 +10,26 @@ class InquiryForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Inquiry
         fields = ["name", "phone", "message"]
+        labels = {"phone": "Your WhatsApp number"}
         widgets = {"message": forms.Textarea(attrs={"rows": 4}),
-                   "phone": forms.TextInput(attrs={"placeholder": "07XX XXX XXX", "inputmode": "tel"})}
+                   "phone": forms.TextInput(attrs={"placeholder": "07XX XXX XXX", "inputmode": "tel",
+                                                   "autocomplete": "tel"})}
+
+    on_whatsapp = forms.BooleanField(
+        required=True, label="This number is registered on WhatsApp",
+        error_messages={"required": "Please confirm that your number is registered on WhatsApp: "
+                                    "the agent will answer you there."})
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["phone"].required = True  # the agent calls / WhatsApps the client on this number
+        self.fields["phone"].required = True  # the agent chats with the client on WhatsApp on this number
+        self.fields["phone"].help_text = "After you press Send, WhatsApp opens with your message and this listing's link."
+
+    def clean_phone(self):
+        phone = self.cleaned_data["phone"].strip()
+        if not whatsapp_number(phone):
+            raise forms.ValidationError("Enter a valid phone number, e.g. 0788 123 456 or +250 788 123 456.")
+        return phone
 
 
 class InquiryResponseForm(BootstrapFormMixin, forms.ModelForm):
@@ -23,8 +38,7 @@ class InquiryResponseForm(BootstrapFormMixin, forms.ModelForm):
 
     class Meta:
         model = Inquiry
-        fields = ["reply", "status", "assigned_agent", "is_public"]
-        labels = {"is_public": "Show this conversation on the property page (client's first name only)"}
+        fields = ["reply", "status", "assigned_agent"]
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)

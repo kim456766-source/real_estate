@@ -127,12 +127,29 @@ def property_detail(request, slug):
         "whatsapp_url": agent_whatsapp_url(request, prop, f"Hello, I am interested in {prop.title} ({prop.reference})."),
         # "Agent replies" chat box: about this property (continues this device's conversation, if any)
         "chat_property": prop if prop.is_public and not prop.is_taken else None,
+        # Agents / admins: the chat box lists every client conversation about this listing (to answer in the dashboard)
+        "staff_conversations": staff_conversations(user, prop),
         "chat_data": (_chat_json(convo, as_agent=can_answer(request.user, convo))
                       if (convo := device_conversation(request, prop)) else None),
         "ask_choices": ASK_CHOICES,
         "similar": similar,
         "is_favorite": prop.pk in favorite_ids(request),
     })
+
+
+def staff_conversations(user, prop):
+    """For a signed-in agent / admin: the client conversations about `prop` they handle, newest first,
+    marked "needs an answer" when the client wrote last. None for everyone else."""
+    if not (user.is_authenticated and (user.is_admin_role or user.is_agent)):
+        return None
+    from dashboard.scoping import inquiries_for
+    convos = list(inquiries_for(user).filter(property=prop).prefetch_related("thread").order_by("-updated_at")[:20])
+    for c in convos:
+        msgs = list(c.thread.all())
+        last = msgs[-1] if msgs else None
+        c.last_text = last.body if last else c.message
+        c.needs_answer = last is None or last.from_client
+    return convos
 
 
 def submit_property(request):

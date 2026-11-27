@@ -10,7 +10,7 @@ property and read the agent's replies right here; elsewhere it lists this device
 </a>
 
 <section class="chat-panel" id="chatPanel" role="dialog" aria-label="Agent replies" hidden
-  {% if chat_property %}data-send-url="{% url 'inquiries:chat_send' chat_property.slug %}" data-poll-url="{% url 'inquiries:chat_poll' 0 %}"{% endif %}>
+  {% if chat_property and staff_conversations is None %}data-send-url="{% url 'inquiries:chat_send' chat_property.slug %}" data-poll-url="{% url 'inquiries:chat_poll' 0 %}"{% endif %}>
   <header class="chat-panel-head">
     <div class="d-flex align-items-center gap-2" style="min-width:0">
       <span class="chat-panel-icon"><i class="fa-regular fa-comments"></i></span>
@@ -22,7 +22,24 @@ property and read the agent's replies right here; elsewhere it lists this device
     <button type="button" class="chat-panel-close" aria-label="Close" data-chat-close><i class="fa-solid fa-xmark"></i></button>
   </header>
 
-  {% if chat_property %}
+  {% if staff_conversations is not None %}
+  {# Agents / admins: every client's conversation about this listing; answered in the dashboard #}
+  <div class="chat-panel-body">
+    <p class="small text-muted mb-2"><i class="fa-solid fa-user-tie me-1"></i>You are signed in as staff. Tap a client to answer in the dashboard.</p>
+    {% for c in staff_conversations %}
+    <a href="{% url 'dashboard:inquiry_detail' c.pk %}#reply" class="chat-convo">
+      <span class="chat-convo-text w-100">
+        <span class="d-flex justify-content-between gap-2"><span class="fw-semibold text-truncate">{{ c.name }}</span>
+          {% if c.needs_answer %}<span class="badge bg-danger flex-shrink-0">Needs an answer</span>{% else %}<span class="badge bg-success flex-shrink-0">Answered</span>{% endif %}</span>
+        <span class="small text-muted d-block text-truncate">{{ c.last_text }}</span>
+        <span class="small text-muted">{{ c.updated_at|naturaltime }}</span></span>
+    </a>
+    {% empty %}
+    <p class="text-center text-muted small py-3 mb-0">No client has asked about this listing yet.</p>
+    {% endfor %}
+    <a href="{% url 'dashboard:inquiries' %}" class="btn btn-primary btn-sm w-100 mt-2">Open all conversations</a>
+  </div>
+  {% elif chat_property %}
   <div class="chat-panel-body" id="chatBody">
     <p class="chat-panel-intro" id="chatIntro" {% if chat_data %}hidden{% endif %}>Ask about this property and get a reply right here.</p>
     <div class="chat-thread" id="chatThread" aria-live="polite"></div>

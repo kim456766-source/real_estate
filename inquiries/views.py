@@ -53,17 +53,8 @@ def can_answer(user, inquiry):
     return user.is_admin_role or user.pk in (inquiry.assigned_agent_id, inquiry.property.agent_id)
 
 
-STAFF_USE_DASHBOARD = ("You are signed in as an agent or admin, so you can't write as a client. Answer clients from "
-                       "Dashboard > Inquiries (or sign out to ask as a client).")
-
-
-def add_agent_reply(inquiry, user, body):
-    """An agent / admin answers: saved as THEIR message (never as the client's)."""
-    InquiryMessage.objects.create(inquiry=inquiry, from_client=False, author=user, body=body)
-    inquiry.response = body
-    inquiry.responded_at = inquiry.responded_at or timezone.now()
-    inquiry.status = Inquiry.Status.RESPONDED
-    inquiry.save(update_fields=["response", "responded_at", "status", "updated_at"])
+STAFF_USE_DASHBOARD = ("You are signed in as an agent or admin. Answer clients from Dashboard > Inquiries, where "
+                       "each client's conversation is listed (to ask as a client, sign out first).")
 
 
 def agent_whatsapp_url(request, prop, message="", name=""):
@@ -143,14 +134,8 @@ def client_reply(request, pk):
     the conversation, so nobody else can write into it."""
     back = reverse("inquiries:conversations") + f"?c={pk}#reply"
     inquiry = get_object_or_404(my_inquiries(request).select_related("property"), pk=pk)
-    if is_staff_user(request.user):
-        if not can_answer(request.user, inquiry):
-            messages.error(request, STAFF_USE_DASHBOARD)
-            return redirect(back)
-        form = ClientReplyForm(request.POST)
-        if form.is_valid():
-            add_agent_reply(inquiry, request.user, form.cleaned_data["body"])
-            messages.success(request, "Your reply was sent to the client (as the agent).")
+    if is_staff_user(request.user):  # staff answer from the dashboard, where every client's conversation is
+        messages.error(request, STAFF_USE_DASHBOARD)
         return redirect(back)
     if hit_rate_limit(request, "inquiry_reply", 30):
         messages.error(request, "You have sent too many messages in a short time. Please try again later.")
@@ -261,15 +246,11 @@ def chat_send(request, slug):
     if hit_rate_limit(request, "chat", CHAT_PER_HOUR):
         return JsonResponse({"ok": False, "error": "You have sent too many messages. Please try again later."},
                             status=429)
-    inquiry = device_conversation(request, prop)
+    # Staff never write here: on a shared phone this box shows the conversation THIS device started,
+    # not the client's. They answer each client from the dashboard instead.
     if is_staff_user(request.user):
-        if not inquiry or not can_answer(request.user, inquiry):
-            return JsonResponse({"ok": False, "error": STAFF_USE_DASHBOARD}, status=403)
-        form = ClientReplyForm({"body": request.POST.get("message", "")})
-        if not form.is_valid():
-            return JsonResponse({"ok": False, "error": "Please write a message."}, status=400)
-        add_agent_reply(inquiry, request.user, form.cleaned_data["body"])
-        return JsonResponse(_chat_json(inquiry, as_agent=True))
+        return JsonResponse({"ok": False, "error": STAFF_USE_DASHBOARD}, status=403)
+    inquiry = device_conversation(request, prop)
     if inquiry:
         form = ClientReplyForm({"body": request.POST.get("message", "")})
         if not form.is_valid():

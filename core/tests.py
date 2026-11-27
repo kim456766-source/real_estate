@@ -1202,35 +1202,37 @@ class TheoPropertyTests(TestCase):
         self.assertContains(self.client.get(reverse("pages:about")), f"?c={inq.pk}")
 
     def test_agent_on_the_same_phone_never_writes_as_the_client(self):
-        """An agent signed in on the phone that sent the question replies AS THE AGENT, not as the client."""
+        """An agent signed in on the phone that sent a question can't write in the public chat box (it would land
+        in that phone's own conversation, not the client's). The box lists the clients to answer in the dashboard."""
         send = reverse("inquiries:chat_send", args=[self.prop.slug])
         ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
-        inq = Inquiry.objects.get(pk=self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()["conversation"])
+        mine = Inquiry.objects.get(pk=self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()["conversation"])
+        other = self.client_class()
+        theirs = Inquiry.objects.get(pk=other.post(send, {"message": "Can we schedule a time to view it?"},
+                                                   HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+                                                   HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Edg/120").json()["conversation"])
         self.client.force_login(self.agent)  # same phone, now signed in as the listing's agent
-        data = self.client.post(send, {"message": "Tomorrow at 10am"}, **ajax).json()
-        self.assertTrue(data["ok"])
-        self.client.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "See you there"})
-        msgs = list(inq.thread.order_by("pk").values_list("from_client", "author", "body"))
-        self.assertEqual(msgs, [(False, self.agent.pk, "Tomorrow at 10am"), (False, self.agent.pk, "See you there")])
-        self.assertEqual([m["mine"] for m in data["messages"]], [False, True])  # agent's view: their reply on the right
-        inq.refresh_from_db()
-        self.assertEqual(inq.status, "responded")
-        # another agent (not this listing's) can't write into it at all
-        self.client.force_login(self.agent2)
-        r = self.client.post(send, {"message": "hi"}, **ajax)
+        r = self.client.post(send, {"message": "Tomorrow at 10am"}, **ajax)
         self.assertEqual(r.status_code, 403)
-        self.assertEqual(inq.thread.count(), 2)
-        # the client (signed out, same phone) sees both replies from the agent, and the badge counts them
-        device = self.client.cookies["tp_device"].value
-        self.client.logout()  # (the test browser forgets cookies on sign-out; a real phone keeps its device key)
-        self.client.cookies["tp_device"] = device
-        poll = self.client.get(reverse("inquiries:chat_poll", args=[inq.pk])).json()
+        self.client.post(reverse("inquiries:reply", args=[mine.pk]), {"body": "See you there"})
+        self.assertEqual(InquiryMessage.objects.filter(inquiry__in=[mine, theirs]).count(), 0)
+        # the chat box lists BOTH clients, each with its own label, linking to the dashboard reply
+        page = self.client.get(self.prop.get_absolute_url())
+        for inq in (mine, theirs):
+            self.assertContains(page, inq.name)
+            self.assertContains(page, reverse("dashboard:inquiry_detail", args=[inq.pk]) + "#reply")
+        self.assertContains(page, "Needs an answer")
+        # answering in the dashboard reaches the right client, who sees it (and the badge counts it)
+        self.client.post(reverse("dashboard:inquiry_detail", args=[theirs.pk]), {"status": "new", "reply": "Tomorrow at 10am"})
+        poll = other.get(reverse("inquiries:chat_poll", args=[theirs.pk])).json()
         self.assertEqual([(m["mine"], m["text"]) for m in poll["messages"]],
-                         [(True, "Can we schedule a time to view it?"), (False, "Tomorrow at 10am"), (False, "See you there")])
-        self.assertEqual(self.client.get(reverse("inquiries:unread")).json()["unread"], 0)  # just read them in the box
-        InquiryMessage.objects.create(inquiry=inq, author=self.agent, body="Bring your ID")
-        self.assertEqual(self.client.get(reverse("inquiries:unread")).json()["unread"], 1)
-        self.assertContains(self.client.get(reverse("pages:about")), 'data-unread-url="')
+                         [(True, "Can we schedule a time to view it?"), (False, "Tomorrow at 10am")])
+        InquiryMessage.objects.create(inquiry=theirs, author=self.agent, body="Bring your ID")
+        self.assertEqual(other.get(reverse("inquiries:unread")).json()["unread"], 1)
+        self.assertEqual(mine.thread.count(), 0)
+        # another agent (not this listing's) sees no clients of this listing
+        self.client.force_login(self.agent2)
+        self.assertNotContains(self.client.get(self.prop.get_absolute_url()), theirs.name)
 
     # ---------- admin insights ----------
     def test_active_users_and_analytics(self):

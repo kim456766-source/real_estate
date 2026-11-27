@@ -576,3 +576,47 @@ document.querySelectorAll("form.js-wa-inquiry").forEach(function (form) {
     }
   });
 });
+
+// Tell the client when the agent replies: the "Agent replies" button checks every 30 seconds
+// (only on devices that have a conversation), shows the count and a short note.
+(function () {
+  const toggle = document.getElementById("chatToggle");
+  if (!toggle || !toggle.dataset.unreadUrl) return;
+  let last = Number((toggle.querySelector(".messages-badge") || {}).textContent || 0);
+  setInterval(async function () {
+    if (document.hidden) return;
+    try {
+      const res = await fetch(toggle.dataset.unreadUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (!res.ok) return;
+      const n = (await res.json()).unread;
+      let badge = toggle.querySelector(".messages-badge");
+      if (n > 0) {
+        if (!badge) { badge = document.createElement("span"); badge.className = "messages-badge"; toggle.append(badge); }
+        badge.textContent = n;
+      } else if (badge) { badge.remove(); }
+      if (n > last) {
+        const note = document.createElement("div");
+        note.className = "chat-toast"; note.setAttribute("role", "status");
+        note.textContent = "New reply from the agent. Tap Agent replies to read it.";
+        document.body.append(note);
+        setTimeout(() => note.remove(), 6000);
+      }
+      last = n;
+    } catch (e) { /* offline for a moment */ }
+  }, 30000);
+})();
+
+// "My conversations" page: a new reply appears by itself (unless the visitor is typing)
+(function () {
+  const thread = document.getElementById("convoThread");
+  if (!thread) return;
+  setInterval(async function () {
+    if (document.hidden) return;
+    const box = document.querySelector("#reply textarea");
+    if (box && box.value.trim()) return;
+    try {
+      const res = await fetch(thread.dataset.pollUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (res.ok && (await res.json()).messages.length !== Number(thread.dataset.count)) location.reload();
+    } catch (e) { /* try again next time */ }
+  }, 10000);
+})();

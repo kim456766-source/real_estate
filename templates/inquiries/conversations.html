@@ -44,14 +44,15 @@
             {% if active.whatsapp_url %}<a href="{{ active.whatsapp_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-success"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>{% endif %}
           </div>
         </div>
-        <div class="chat-thread mb-3">
-          <div class="chat-msg mine">
-            <div class="chat-meta">You · {{ active.created_at|date:"d M Y H:i" }}</div>
+        {% if as_agent %}<div class="alert alert-info small py-2"><i class="fa-solid fa-user-tie me-1"></i>You are signed in as the agent: your replies are sent to the client as the agent.</div>{% endif %}
+        <div class="chat-thread mb-3" id="convoThread" data-poll-url="{% url 'inquiries:chat_poll' active.pk %}" data-count="{{ active.thread.all|length|add:1 }}">
+          <div class="chat-msg {% if as_agent %}theirs{% else %}mine{% endif %}">
+            <div class="chat-meta">{% if as_agent %}{{ active.name }}{% else %}You{% endif %} · {{ active.created_at|date:"d M Y H:i" }}</div>
             <div class="chat-bubble">{{ active.message }}</div>
           </div>
           {% for m in active.thread.all %}
-          <div class="chat-msg {% if m.from_client %}mine{% else %}theirs{% endif %}">
-            <div class="chat-meta">{% if m.from_client %}You{% else %}{{ m.author|default:"Our agent" }}{% endif %} · {{ m.created_at|date:"d M Y H:i" }}</div>
+          <div class="chat-msg {% if m.from_client and not as_agent or not m.from_client and as_agent %}mine{% else %}theirs{% endif %}">
+            <div class="chat-meta">{% if m.from_client %}{% if as_agent %}{{ active.name }}{% else %}You{% endif %}{% else %}{{ m.author|default:"Our agent" }}{% endif %} · {{ m.created_at|date:"d M Y H:i" }}</div>
             <div class="chat-bubble">{{ m.body }}</div>
           </div>
           {% empty %}

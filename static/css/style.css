@@ -600,3 +600,5 @@ img { max-width: 100%; }
 /* Property page: map in the right column (under the agent's card) */
 .side-map #map { height: 260px; }
 @media (max-height: 920px) { .sticky-side { position: static; } }  /* short screens: let the right column scroll with the page */
+.chat-toast { position: fixed; right: 22px; bottom: 146px; max-width: 280px; background: #212529; color: #fff; padding: 10px 14px;
+  border-radius: 12px; font-size: .88rem; box-shadow: 0 10px 24px rgba(0,0,0,.25); z-index: 1060; }

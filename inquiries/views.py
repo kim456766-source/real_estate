@@ -42,6 +42,30 @@ def unread_count(request):
     return sum(1 for row in latest if row["last"] > seen.get(str(row["inquiry_id"]), 0))
 
 
+def is_staff_user(user):
+    return user.is_authenticated and (user.is_admin_role or user.is_agent)
+
+
+def can_answer(user, inquiry):
+    """Admins answer every conversation; agents the ones for their listings."""
+    if not is_staff_user(user):
+        return False
+    return user.is_admin_role or user.pk in (inquiry.assigned_agent_id, inquiry.property.agent_id)
+
+
+STAFF_USE_DASHBOARD = ("You are signed in as an agent or admin, so you can't write as a client. Answer clients from "
+                       "Dashboard > Inquiries (or sign out to ask as a client).")
+
+
+def add_agent_reply(inquiry, user, body):
+    """An agent / admin answers: saved as THEIR message (never as the client's)."""
+    InquiryMessage.objects.create(inquiry=inquiry, from_client=False, author=user, body=body)
+    inquiry.response = body
+    inquiry.responded_at = inquiry.responded_at or timezone.now()
+    inquiry.status = Inquiry.Status.RESPONDED
+    inquiry.save(update_fields=["response", "responded_at", "status", "updated_at"])
+
+
 def agent_whatsapp_url(request, prop, message="", name=""):
     """WhatsApp chat with the property's agent (or our customer service), pre-filled with the
     client's message and the listing's link."""
@@ -68,6 +92,7 @@ def conversations(request):
         active.whatsapp_url = agent_whatsapp_url(request, active.property)
     return render(request, "inquiries/conversations.html", {
         "tabs": tabs, "active": active, "reply_form": ClientReplyForm(),
+        "as_agent": bool(active) and can_answer(request.user, active),
         "retention_days": settings.INQUIRY_RETENTION_DAYS})
 
 
@@ -117,7 +142,16 @@ def client_reply(request, pk):
     """The client answers the agent on 'My conversations'. Only from the device (or account) that sent
     the conversation, so nobody else can write into it."""
     back = reverse("inquiries:conversations") + f"?c={pk}#reply"
-    inquiry = get_object_or_404(my_inquiries(request), pk=pk)
+    inquiry = get_object_or_404(my_inquiries(request).select_related("property"), pk=pk)
+    if is_staff_user(request.user):
+        if not can_answer(request.user, inquiry):
+            messages.error(request, STAFF_USE_DASHBOARD)
+            return redirect(back)
+        form = ClientReplyForm(request.POST)
+        if form.is_valid():
+            add_agent_reply(inquiry, request.user, form.cleaned_data["body"])
+            messages.success(request, "Your reply was sent to the client (as the agent).")
+        return redirect(back)
     if hit_rate_limit(request, "inquiry_reply", 30):
         messages.error(request, "You have sent too many messages in a short time. Please try again later.")
         return redirect(back)
@@ -196,14 +230,16 @@ def device_conversation(request, prop):
     return my_inquiries(request).filter(property=prop).exclude(status=Inquiry.Status.CLOSED).first()
 
 
-def _chat_json(inquiry):
+def _chat_json(inquiry, as_agent=False):
+    """The conversation for the chat box. `as_agent`: seen by the agent (their messages on the right)."""
     agent = inquiry.assigned_agent
-    msgs = [{"id": 0, "mine": True, "who": "You", "text": inquiry.message,
+    client_label = inquiry.name if as_agent else "You"
+    msgs = [{"id": 0, "mine": not as_agent, "who": client_label, "text": inquiry.message,
              "time": timezone.localtime(inquiry.created_at).strftime("%d %b %H:%M")}]
     for m in inquiry.thread.select_related("author").order_by("created_at", "pk"):
-        msgs.append({"id": m.pk, "mine": m.from_client,
-                     "who": "You" if m.from_client else (m.author.get_full_name() or m.author.username
-                                                         if m.author else "Agent"),
+        staff_name = (m.author.get_full_name() or m.author.username) if m.author else "Agent"
+        msgs.append({"id": m.pk, "mine": m.from_client != as_agent,
+                     "who": client_label if m.from_client else staff_name,
                      "text": m.body, "time": timezone.localtime(m.created_at).strftime("%d %b %H:%M")})
     return {"ok": True, "conversation": inquiry.pk, "closed": inquiry.status == Inquiry.Status.CLOSED,
             "agent": (agent.get_full_name() or agent.username) if agent else "", "messages": msgs}
@@ -220,6 +256,14 @@ def chat_send(request, slug):
         return JsonResponse({"ok": False, "error": "You have sent too many messages. Please try again later."},
                             status=429)
     inquiry = device_conversation(request, prop)
+    if is_staff_user(request.user):
+        if not inquiry or not can_answer(request.user, inquiry):
+            return JsonResponse({"ok": False, "error": STAFF_USE_DASHBOARD}, status=403)
+        form = ClientReplyForm({"body": request.POST.get("message", "")})
+        if not form.is_valid():
+            return JsonResponse({"ok": False, "error": "Please write a message."}, status=400)
+        add_agent_reply(inquiry, request.user, form.cleaned_data["body"])
+        return JsonResponse(_chat_json(inquiry, as_agent=True))
     if inquiry:
         form = ClientReplyForm({"body": request.POST.get("message", "")})
         if not form.is_valid():
@@ -256,8 +300,8 @@ def chat_send(request, slug):
 
 def chat_poll(request, pk):
     """New replies for the open chat box (checked every few seconds while it is open)."""
-    inquiry = get_object_or_404(my_inquiries(request), pk=pk)
-    data = _chat_json(inquiry)
+    inquiry = get_object_or_404(my_inquiries(request).select_related("property"), pk=pk)
+    data = _chat_json(inquiry, as_agent=can_answer(request.user, inquiry))
     # The client is looking at it: the agent's messages count as read
     agent_ids = [m["id"] for m in data["messages"] if not m["mine"]]
     if agent_ids:
@@ -265,3 +309,8 @@ def chat_poll(request, pk):
         if seen.get(str(pk), 0) < max(agent_ids):
             request.session[SEEN_KEY] = {**seen, str(pk): max(agent_ids)}
     return JsonResponse(data)
+
+
+def unread(request):
+    """How many conversations on this device have a reply the client hasn't read (for the badge)."""
+    return JsonResponse({"unread": unread_count(request)})

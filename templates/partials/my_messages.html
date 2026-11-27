@@ -3,6 +3,7 @@ property and read the agent's replies right here; elsewhere it lists this device
 {% load humanize %}
 {% if request.resolver_match.view_name != "inquiries:conversations" and not request.resolver_match.namespace == "dashboard" %}
 <a href="{% url 'inquiries:conversations' %}" class="messages-float" id="chatToggle" aria-controls="chatPanel" aria-expanded="false"
+   {% if chat_data or chat_conversations %}data-unread-url="{% url 'inquiries:unread' %}"{% endif %}
    aria-label="Agent replies: chat with the agent" title="Chat with the agent">
   <i class="fa-regular fa-comments"></i><span class="messages-label">Agent replies</span>
   {% if agent_unread %}<span class="messages-badge">{{ agent_unread }}</span>{% endif %}

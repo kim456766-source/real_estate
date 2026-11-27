@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from core.utils import client_ip
 from favorites.session import favorite_ids
-from inquiries.views import _chat_json, agent_whatsapp_url, device_conversation
+from inquiries.views import _chat_json, agent_whatsapp_url, can_answer, device_conversation
 from notifications.services import email_contact, email_support, notify_admins
 
 from .filters import PropertyFilter
@@ -127,7 +127,8 @@ def property_detail(request, slug):
         "whatsapp_url": agent_whatsapp_url(request, prop, f"Hello, I am interested in {prop.title} ({prop.reference})."),
         # "Agent replies" chat box: about this property (continues this device's conversation, if any)
         "chat_property": prop if prop.is_public and not prop.is_taken else None,
-        "chat_data": _chat_json(convo) if (convo := device_conversation(request, prop)) else None,
+        "chat_data": (_chat_json(convo, as_agent=can_answer(request.user, convo))
+                      if (convo := device_conversation(request, prop)) else None),
         "ask_choices": ASK_CHOICES,
         "similar": similar,
         "is_favorite": prop.pk in favorite_ids(request),

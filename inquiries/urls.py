@@ -10,4 +10,5 @@ urlpatterns = [
     path("conversations/", views.conversations, name="conversations"),
     path("chat/<slug:slug>/send/", views.chat_send, name="chat_send"),
     path("chat/<int:pk>/messages/", views.chat_poll, name="chat_poll"),
+    path("chat/unread/", views.unread, name="unread"),
 ]

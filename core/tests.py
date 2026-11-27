@@ -1197,6 +1197,37 @@ class TheoPropertyTests(TestCase):
         # elsewhere the box lists this device's conversations
         self.assertContains(self.client.get(reverse("pages:about")), f"?c={inq.pk}")
 
+    def test_agent_on_the_same_phone_never_writes_as_the_client(self):
+        """An agent signed in on the phone that sent the question replies AS THE AGENT, not as the client."""
+        send = reverse("inquiries:chat_send", args=[self.prop.slug])
+        ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+        inq = Inquiry.objects.get(pk=self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()["conversation"])
+        self.client.force_login(self.agent)  # same phone, now signed in as the listing's agent
+        data = self.client.post(send, {"message": "Tomorrow at 10am"}, **ajax).json()
+        self.assertTrue(data["ok"])
+        self.client.post(reverse("inquiries:reply", args=[inq.pk]), {"body": "See you there"})
+        msgs = list(inq.thread.order_by("pk").values_list("from_client", "author", "body"))
+        self.assertEqual(msgs, [(False, self.agent.pk, "Tomorrow at 10am"), (False, self.agent.pk, "See you there")])
+        self.assertEqual([m["mine"] for m in data["messages"]], [False, True])  # agent's view: their reply on the right
+        inq.refresh_from_db()
+        self.assertEqual(inq.status, "responded")
+        # another agent (not this listing's) can't write into it at all
+        self.client.force_login(self.agent2)
+        r = self.client.post(send, {"message": "hi"}, **ajax)
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(inq.thread.count(), 2)
+        # the client (signed out, same phone) sees both replies from the agent, and the badge counts them
+        device = self.client.cookies["tp_device"].value
+        self.client.logout()  # (the test browser forgets cookies on sign-out; a real phone keeps its device key)
+        self.client.cookies["tp_device"] = device
+        poll = self.client.get(reverse("inquiries:chat_poll", args=[inq.pk])).json()
+        self.assertEqual([(m["mine"], m["text"]) for m in poll["messages"]],
+                         [(True, "Can we schedule a time to view it?"), (False, "Tomorrow at 10am"), (False, "See you there")])
+        self.assertEqual(self.client.get(reverse("inquiries:unread")).json()["unread"], 0)  # just read them in the box
+        InquiryMessage.objects.create(inquiry=inq, author=self.agent, body="Bring your ID")
+        self.assertEqual(self.client.get(reverse("inquiries:unread")).json()["unread"], 1)
+        self.assertContains(self.client.get(reverse("pages:about")), 'data-unread-url="')
+
     # ---------- admin insights ----------
     def test_active_users_and_analytics(self):
         browser = {"HTTP_USER_AGENT": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile Safari/604.1"}

@@ -1,0 +1,96 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Help{% endblock %}
+{% block page_title %}Help{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-xl-8">
+    <div class="accordion" id="helpGuides">
+      {% with a="helpGuides" %}
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#h1" aria-expanded="true">
+          <i class="fa-solid fa-plus me-2 text-success"></i>Adding and publishing a property</button></h2>
+        <div id="h1" class="accordion-collapse collapse show" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          <ol class="mb-0">
+            <li>Click <strong>Add property</strong> in the menu, choose the type and whether it is for sale or rent.</li>
+            <li>Fill in the price, location and details, and add at least one photo (the first photo becomes the cover).</li>
+            <li>Click <strong>Save</strong>. {% if user.is_admin_role %}Then click <strong>Publish on website</strong>.{% else %}An administrator publishes it after checking it (unless you are allowed to publish directly).{% endif %}</li>
+            <li>Owners can also submit properties from the website ("Submit your property"); they appear under <strong>Unassigned submissions</strong> for an admin to give to an agent.</li>
+          </ol></div></div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h2">
+          <i class="fa-brands fa-whatsapp me-2 text-success"></i>Answering clients (messages and WhatsApp)</button></h2>
+        <div id="h2" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          <ul class="mb-0">
+            <li>When a client sends a message from a listing, you get an email and a notification, and the client is taken to your WhatsApp with the listing's link.</li>
+            <li>Clients can also write in the <strong>Agent replies</strong> chat box on the website. Answer from <strong>Inquiries</strong>: your reply appears in their chat box straight away.</li>
+            <li>Each inquiry has a <strong>Chat on WhatsApp</strong> button that opens a chat with the client, including the listing's link.</li>
+            <li>Conversations are private: the client sees them only on the phone or computer they used. They are deleted {{ retention_days }} days after the last message.</li>
+            <li>Never ask a client to pay before they have visited the property.</li>
+          </ul></div></div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h3">
+          <i class="fa-solid fa-calendar-check me-2 text-warning"></i>Listings online for a month: repost or remove</button></h2>
+        <div id="h3" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          <ul class="mb-0">
+            <li>After {{ check_days }} days, the agent (or the admins, if there is no agent) gets a reminder with how many clients reached out.</li>
+            <li><strong>Repost</strong> if it is still on offer: it comes back to the top as new. <strong>Mark as sold / rented</strong> if it is taken. <strong>Remove from website</strong> if it should not be shown any more.</li>
+            <li>See them all under <strong>All properties / My listings → Online over a month</strong>.</li>
+          </ul></div></div>
+      </div>
+      {% if user.is_admin_role %}
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h4">
+          <i class="fa-solid fa-fire me-2 text-danger"></i>Hot deals (admins)</button></h2>
+        <div id="h4" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          Open a published listing, find the <strong>Hot deal</strong> box, choose how long (or an end date) and click <strong>Make it a hot deal</strong>.
+          It is shown first on the website until then, whenever it was posted. The price is never changed.</div></div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h5">
+          <i class="fa-solid fa-chart-line me-2 text-primary"></i>Active users, analytics, reports and problem reports (admins)</button></h2>
+        <div id="h5" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          <ul class="mb-0">
+            <li><strong>Active users</strong>: admins and agents online now and when each was last seen, plus visitors on the website now (device and page).</li>
+            <li><strong>Analytics</strong>: visitors and pages viewed per day, devices, where visitors arrive, and how many messaged an agent.</li>
+            <li><strong>Reports</strong>: every figure about listings, clients, agents and payments, with downloads for Excel.</li>
+            <li><strong>Problem reports</strong>: fake listings, wrong information, agent problems and website problems reported by visitors or staff. Mark each one resolved or dismissed, with a note.</li>
+          </ul></div></div>
+      </div>
+      {% endif %}
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h6">
+          <i class="fa-regular fa-folder-open me-2"></i>Documents</button></h2>
+        <div id="h6" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          Keep contracts, title deeds, IDs and forms under <strong>Documents</strong> (PDF, Word, Excel or photos, up to 10 MB). They are private and never shown on the website.
+          {% if user.is_admin_role %}Choose "Admins and agents" to share a document with agents: they see it only if it is general or about one of their listings.{% else %}You can upload documents for your own listings; administrators can see them too.{% endif %}</div></div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#h7">
+          <i class="fa-solid fa-shield-halved me-2"></i>Signing in and security</button></h2>
+        <div id="h7" class="accordion-collapse collapse" data-bs-parent="#{{ a }}"><div class="accordion-body small">
+          Sign in from the <strong>Sign In</strong> link at the very bottom of the website. A 6-digit code is emailed to you each time. Never share your password or code; our team will never ask for it.
+          Forgot your password? Use "Forgot password" on the sign-in page.</div></div>
+      </div>
+      {% endwith %}
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="dash-card" id="report"><div class="card-head"><h6><i class="fa-solid fa-flag me-1 text-danger"></i>Report a problem</h6></div>
+      <div class="card-body-tp">
+        <p class="small text-muted">Something not working, or a listing or client that looks suspicious? Tell the administrators.</p>
+        <form method="post" action="{% url 'report_problem' %}">{% csrf_token %}
+          <input type="hidden" name="page" value="{{ request.path }}">
+          {% include "partials/form_fields.html" with form=report_form col="col-12" %}
+          <button class="btn btn-danger w-100 mt-3"><i class="fa-solid fa-paper-plane me-1"></i>Send report</button>
+        </form>
+      </div></div>
+    <div class="dash-card mt-3"><div class="card-head"><h6>Need a person?</h6></div>
+      <div class="card-body-tp small">
+        <a href="https://wa.me/{{ site.whatsapp }}" target="_blank" rel="noopener" class="btn btn-success btn-sm w-100 mb-2"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp {{ site.whatsapp_display }}</a>
+        {% if site.email %}<a href="mailto:{{ site.email }}" class="btn btn-light btn-sm w-100"><i class="fa-regular fa-envelope me-1"></i>{{ site.email }}</a>{% endif %}
+      </div></div>
+  </div>
+</div>
+{% endblock %}

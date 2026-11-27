@@ -11,6 +11,7 @@
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
   <link href="{% static 'css/style.css' %}?v={{ STATIC_VERSION }}" rel="stylesheet">
   <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body class="dash-body">
 {% with url_name=request.resolver_match.url_name %}
@@ -42,7 +43,19 @@
   <div class="nav-section">Business</div>
   <a class="nav-link {% if 'payment' in url_name %}active{% endif %}" href="{% url 'dashboard:payments' %}"><i class="fa-solid fa-money-bill-wave"></i>Payments</a>
   {% endif %}
+  {% if user.is_admin_role %}
+  <div class="nav-section">Insights</div>
+  <a class="nav-link {% if url_name == 'active_users' %}active{% endif %}" href="{% url 'dashboard:active_users' %}"><i class="fa-solid fa-signal"></i>Active users</a>
+  <a class="nav-link {% if url_name == 'analytics' %}active{% endif %}" href="{% url 'dashboard:analytics' %}"><i class="fa-solid fa-chart-line"></i>Analytics</a>
+  {% endif %}
   <a class="nav-link {% if url_name == 'reports' %}active{% endif %}" href="{% url 'dashboard:reports' %}"><i class="fa-solid fa-chart-pie"></i>Reports</a>
+  {% if user.is_admin_role %}
+  <a class="nav-link {% if 'problem_report' in url_name %}active{% endif %}" href="{% url 'dashboard:problem_reports' %}"><i class="fa-solid fa-flag"></i>Problem reports{% if open_problem_reports %}<span class="badge rounded-pill bg-danger ms-auto">{{ open_problem_reports }}</span>{% endif %}</a>
+  {% endif %}
+  {% if user.is_admin_role or user.is_agent %}
+  <a class="nav-link {% if 'document' in url_name %}active{% endif %}" href="{% url 'dashboard:documents' %}"><i class="fa-regular fa-folder-open"></i>Documents</a>
+  {% endif %}
+  <a class="nav-link {% if url_name == 'help' %}active{% endif %}" href="{% url 'dashboard:help' %}"><i class="fa-regular fa-circle-question"></i>Help</a>
   {% if user.is_admin_role %}
   <div class="nav-section">System</div>
   <a class="nav-link {% if url_name == 'messages' %}active{% endif %}" href="{% url 'dashboard:messages' %}"><i class="fa-regular fa-comments"></i>Contact messages</a>

@@ -1117,8 +1117,129 @@ class TheoPropertyTests(TestCase):
         Property.objects.filter(pk=p.pk).update(is_featured=True)
         refresh_scores()
         p.refresh_from_db()
-        self.assertAlmostEqual(p.trend_score, before * 2, places=3)
+        self.assertAlmostEqual(p.trend_score, before * 2, delta=before * 0.02)  # (age moves on a little while tests run)
         self.assertTrue(p.is_new)
+
+    # ---------- "Agent replies" chat box ----------
+    def test_chat_box_on_property_page(self):
+        page = self.client.get(self.prop.get_absolute_url())
+        for text in ("Ask about this property and get a reply right here.", 'placeholder="Your name"',
+                     'placeholder="Phone or email (optional)"', "Is this property still available?",
+                     "Can I schedule a viewing?", "What is the best price?"):
+            self.assertContains(page, text)
+        send = reverse("inquiries:chat_send", args=[self.prop.slug])
+        ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+        # a name is needed; phone or email is optional but must be valid if given
+        self.assertEqual(self.client.post(send, {"name": "", "message": "Hi"}, **ajax).status_code, 400)
+        self.assertEqual(self.client.post(send, {"name": "Eric", "contact": "abc", "message": "Hi"}, **ajax).status_code, 400)
+        r = self.client.post(send, {"name": "Eric", "contact": "", "message": "Is this property still available?"}, **ajax)
+        data = r.json()
+        self.assertTrue(data["ok"])
+        inq = Inquiry.objects.get(pk=data["conversation"])
+        self.assertEqual((inq.name, inq.phone, inq.email, inq.assigned_agent), ("Eric", "", "", self.agent))
+        self.assertTrue(Notification.objects.filter(user=self.agent, title="New property inquiry").exists())
+        # the agent answers in the dashboard; the reply shows in the box (polling)
+        agent = self.client_class()
+        agent.force_login(self.agent)
+        agent.post(reverse("dashboard:inquiry_detail", args=[inq.pk]), {"status": "new", "reply": "Yes, it is."})
+        poll = self.client.get(reverse("inquiries:chat_poll", args=[inq.pk]), **ajax).json()
+        self.assertEqual([m["text"] for m in poll["messages"]], ["Is this property still available?", "Yes, it is."])
+        # the next message continues the same conversation; the page shows it when reopened
+        data = self.client.post(send, {"message": "Can I schedule a viewing?"}, **ajax).json()
+        self.assertEqual(data["conversation"], inq.pk)
+        self.assertEqual(len(data["messages"]), 3)
+        self.assertContains(self.client.get(self.prop.get_absolute_url()), "Can I schedule a viewing?")
+        # with an email: saved as email
+        other = self.client_class()
+        d = other.post(send, {"name": "Ann", "contact": "ann@example.com", "message": "Hello"}, **ajax).json()
+        self.assertEqual(Inquiry.objects.get(pk=d["conversation"]).email, "ann@example.com")
+        # nobody else can read the conversation
+        self.assertEqual(other.get(reverse("inquiries:chat_poll", args=[inq.pk])).status_code, 404)
+        # elsewhere the box lists this device's conversations
+        self.assertContains(self.client.get(reverse("pages:about")), f"?c={inq.pk}")
+
+    # ---------- admin insights ----------
+    def test_active_users_and_analytics(self):
+        browser = {"HTTP_USER_AGENT": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile Safari/604.1"}
+        visitor = self.client_class()
+        visitor.get(reverse("pages:home"), **browser)
+        visitor.get(self.prop.get_absolute_url(), **browser)
+        self.client_class().get(reverse("pages:home"), HTTP_USER_AGENT="UptimeRobot/2.0")  # monitors not counted
+        self.client_class().get("/healthz/", **browser)
+        from core.models import SiteVisit
+        v = SiteVisit.objects.get(user__isnull=True)
+        self.assertEqual((v.hits, v.last_path, v.device_kind), (2, self.prop.get_absolute_url(), "Phone"))
+        agent = self.client_class()
+        agent.force_login(self.agent)
+        agent.get(reverse("dashboard:home"), **browser)
+        # admins only
+        self.assertEqual(agent.get(reverse("dashboard:active_users")).status_code, 403)
+        self.assertEqual(agent.get(reverse("dashboard:analytics")).status_code, 403)
+        self.login(self.admin)
+        r = self.client.get(reverse("dashboard:active_users"))
+        self.assertContains(r, "iPhone · Safari")
+        self.assertIn(self.agent.pk, r.context["online_ids"])
+        self.assertEqual(len(r.context["visitors_online"]), 1)
+        r = self.client.get(reverse("dashboard:analytics"), {"days": "7"})
+        self.assertEqual(r.context["totals"]["visitors"], 1)
+        self.assertEqual(r.context["totals"]["views"], 2)
+        self.assertEqual(self.client.get(reverse("dashboard:export", args=["visits"]))["Content-Type"], "text/csv")
+
+    def test_documents_are_private(self):
+        url = reverse("dashboard:documents")
+        pdf = SimpleUploadedFile("Sale agreement.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        self.login(self.admin)
+        self.client.post(url, {"upload": pdf, "category": "contract", "property": self.prop.pk, "visibility": "admins"})
+        secret = self.client.get(url).context["page_obj"][0]
+        self.assertEqual((secret.title, secret.extension()), ("Sale agreement", "PDF"))
+        r = self.client.get(reverse("dashboard:document_download", args=[secret.pk]))
+        self.assertEqual((r.content, r["Content-Type"]), (b"%PDF-1.4 test", "application/pdf"))
+        # bad file types are refused
+        self.client.post(url, {"upload": SimpleUploadedFile("x.exe", b"MZ"), "category": "other", "visibility": "admins"})
+        self.assertEqual(self.client.get(url).context["page_obj"].paginator.count, 1)
+        shared = SimpleUploadedFile("Plan.png", b"png", content_type="image/png")
+        self.client.post(url, {"upload": shared, "title": "Plot plan", "category": "plan", "property": self.prop.pk,
+                               "visibility": "staff"})
+        # the listing's agent sees only the shared one; other agents see nothing; visitors are sent to sign in
+        self.login(self.agent)
+        titles = [d.title for d in self.client.get(url).context["page_obj"]]
+        self.assertEqual(titles, ["Plot plan"])
+        self.assertEqual(self.client.get(reverse("dashboard:document_download", args=[secret.pk])).status_code, 404)
+        self.login(self.agent2)
+        self.assertEqual(list(self.client.get(url).context["page_obj"]), [])
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("dashboard:document_download", args=[secret.pk])).status_code, 302)
+
+    def test_report_a_problem(self):
+        page = self.client.get(self.prop.get_absolute_url())
+        self.assertContains(page, f"/report/?property={self.prop.reference}")
+        self.assertContains(self.client.get(reverse("pages:home")), "Report a problem")
+        self.client.post(reverse("report_problem"), {"property": self.prop.reference, "kind": "scam",
+                                                     "message": "The owner asked me to pay first."})
+        from dashboard.models import ProblemReport
+        report = ProblemReport.objects.get()
+        self.assertEqual((report.property, report.status), (self.prop, "open"))
+        self.assertTrue(Notification.objects.filter(user=self.admin, title="New problem report").exists())
+        # staff report from Help
+        self.login(self.agent)
+        self.assertContains(self.client.get(reverse("dashboard:help")), "Report a problem")
+        self.client.post(reverse("report_problem"), {"kind": "website", "message": "Upload is slow."})
+        self.assertEqual(ProblemReport.objects.filter(reporter=self.agent).count(), 1)
+        self.assertEqual(self.client.get(reverse("dashboard:problem_reports")).status_code, 403)
+        # the admin sees them all and resolves one
+        self.login(self.admin)
+        r = self.client.get(reverse("dashboard:problem_reports"))
+        self.assertContains(r, "The owner asked me to pay first.")
+        self.assertContains(r, "Upload is slow.")
+        self.client.post(reverse("dashboard:problem_report_action", args=[report.pk, "resolve"]),
+                         {"note": "Listing removed."})
+        report.refresh_from_db()
+        self.assertEqual((report.status, report.admin_note, report.handled_by), ("resolved", "Listing removed.", self.admin))
+        r = self.client.get(reverse("dashboard:reports"))
+        self.assertContains(r, "At a glance")
+        self.assertContains(r, "Open problem reports")
+        for kind in ("agents", "problems"):
+            self.assertEqual(self.client.get(reverse("dashboard:export", args=[kind]))["Content-Type"], "text/csv")
 
     # ---------- staff "Add property" form ----------
     def staff_data(self, **extra):

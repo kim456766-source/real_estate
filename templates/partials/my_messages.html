@@ -1,8 +1,71 @@
-{# Floating "Agent replies" button: opens "My conversations" (the conversations sent from this device) #}
-{% if request.resolver_match.view_name != "inquiries:conversations" %}
-<a href="{% url 'inquiries:conversations' %}" class="messages-float" aria-label="Agent replies: your conversations with agents"
-   title="Your conversations with agents">
+{# "Agent replies": floating button that opens a chat box. On a property page you can ask about that
+   property and read the agent's replies right here; elsewhere it lists this device's conversations. #}
+{% load humanize %}
+{% if request.resolver_match.view_name != "inquiries:conversations" and not request.resolver_match.namespace == "dashboard" %}
+<a href="{% url 'inquiries:conversations' %}" class="messages-float" id="chatToggle" aria-controls="chatPanel" aria-expanded="false"
+   aria-label="Agent replies: chat with the agent" title="Chat with the agent">
   <i class="fa-regular fa-comments"></i><span class="messages-label">Agent replies</span>
   {% if agent_unread %}<span class="messages-badge">{{ agent_unread }}</span>{% endif %}
 </a>
+
+<section class="chat-panel" id="chatPanel" role="dialog" aria-label="Agent replies" hidden
+  {% if chat_property %}data-send-url="{% url 'inquiries:chat_send' chat_property.slug %}" data-poll-url="{% url 'inquiries:chat_poll' 0 %}"{% endif %}>
+  <header class="chat-panel-head">
+    <div class="d-flex align-items-center gap-2" style="min-width:0">
+      <span class="chat-panel-icon"><i class="fa-regular fa-comments"></i></span>
+      <div style="min-width:0">
+        <div class="fw-bold">Agent replies</div>
+        <div class="small chat-panel-sub text-truncate">{% if chat_property %}{{ chat_property.title }} · {{ chat_property.reference }}{% else %}Your conversations with our agents{% endif %}</div>
+      </div>
+    </div>
+    <button type="button" class="chat-panel-close" aria-label="Close" data-chat-close><i class="fa-solid fa-xmark"></i></button>
+  </header>
+
+  {% if chat_property %}
+  <div class="chat-panel-body" id="chatBody">
+    <p class="chat-panel-intro" id="chatIntro" {% if chat_data %}hidden{% endif %}>Ask about this property and get a reply right here.</p>
+    <div class="chat-thread" id="chatThread" aria-live="polite"></div>
+    <div id="chatStart" {% if chat_data %}hidden{% endif %}>
+      <input type="text" class="form-control mb-2" name="name" id="chatName" maxlength="120" placeholder="Your name" autocomplete="name"
+             value="{% if user.is_authenticated %}{{ user.get_full_name }}{% endif %}" aria-label="Your name">
+      <input type="text" class="form-control mb-2" name="contact" id="chatContact" maxlength="120" placeholder="Phone or email (optional)"
+             autocomplete="tel" inputmode="email" aria-label="Phone or email (optional)">
+      <div class="chat-chips" role="group" aria-label="Quick questions">
+        <button type="button" class="chat-chip">Is this property still available?</button>
+        <button type="button" class="chat-chip">Can I schedule a viewing?</button>
+        <button type="button" class="chat-chip">What is the best price?</button>
+      </div>
+    </div>
+  </div>
+  <form class="chat-panel-foot" id="chatForm" novalidate>
+    <div class="chat-error small text-danger mb-1" id="chatError" role="alert" hidden></div>
+    <div class="d-flex gap-2 align-items-end">
+      <textarea name="message" id="chatMessage" rows="1" maxlength="2000" class="form-control" placeholder="Type your message…" aria-label="Your message"></textarea>
+      <button class="btn btn-primary chat-send" aria-label="Send"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2 small">
+      <span class="text-muted"><i class="fa-solid fa-lock me-1"></i>Only you and the agent see this.</span>
+      {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener" class="text-success fw-semibold"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>{% endif %}
+    </div>
+  </form>
+  {{ chat_data|json_script:"chatData" }}
+  {% else %}
+  <div class="chat-panel-body">
+    {% for t in chat_conversations %}{% with p=t.property cover=t.property.cover_image %}
+    <a href="{% url 'inquiries:conversations' %}?c={{ t.pk }}" class="chat-convo">
+      {% if cover %}<img src="{{ cover.image.url }}" alt="" width="46" height="36">{% else %}<span class="convo-noimg"><i class="fa-regular fa-image"></i></span>{% endif %}
+      <span class="chat-convo-text"><span class="fw-semibold text-truncate d-block">{{ p.title }}</span>
+        <span class="small text-muted">{{ t.updated_at|naturaltime }}</span></span>
+    </a>
+    {% endwith %}{% empty %}
+    <div class="text-center py-3">
+      <p class="chat-panel-intro mb-2">Ask any agent a question and get a reply right here.</p>
+      <p class="small text-muted mb-3">Open a property, then tap <strong>Agent replies</strong> to write to its agent.</p>
+      <a href="{% url 'properties:list' %}" class="btn btn-primary btn-sm">Browse properties</a>
+    </div>
+    {% endfor %}
+    {% if chat_conversations %}<a href="{% url 'inquiries:conversations' %}" class="btn btn-light btn-sm w-100 mt-2">Open all conversations</a>{% endif %}
+  </div>
+  {% endif %}
+</section>
 {% endif %}

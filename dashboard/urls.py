@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import insights, views
 
 app_name = "dashboard"
 
@@ -51,4 +51,13 @@ urlpatterns = [
     path("settings/test-email/", views.send_test_email, name="test_email"),
     path("messages/", views.contact_messages, name="messages"),
     path("audit/", views.audit_logs, name="audit"),
+    # Insights, documents, help
+    path("active-users/", insights.active_users, name="active_users"),
+    path("analytics/", insights.analytics, name="analytics"),
+    path("documents/", insights.documents, name="documents"),
+    path("documents/<int:pk>/", insights.document_download, name="document_download"),
+    path("documents/<int:pk>/delete/", insights.document_delete, name="document_delete"),
+    path("problem-reports/", insights.problem_reports, name="problem_reports"),
+    path("problem-reports/<int:pk>/<str:action>/", insights.problem_report_action, name="problem_report_action"),
+    path("help/", insights.help_page, name="help"),
 ]

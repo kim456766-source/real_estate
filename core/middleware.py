@@ -44,6 +44,10 @@ class HousekeepingMiddleware:
             from properties.reminders import remind_if_due
             purge_if_due()
             remind_if_due()  # listings online for a month: remind the agent / admins to check them
+            from django.core.cache import cache
+            if cache.add("visit-purge-done-today", True, 24 * 60 * 60):
+                from core.analytics import purge_old_visits
+                purge_old_visits()
         except Exception:  # housekeeping must never affect the visitor
             logging.getLogger("theo.housekeeping").exception("Daily clean-up failed")
         return response
@@ -64,3 +68,20 @@ class ForcePasswordChangeMiddleware:
             if not request.path.startswith(allowed):
                 return redirect("accounts:password_change")  # the page explains why
         return self.get_response(request)
+
+
+class VisitTrackingMiddleware:
+    """Counts page views for "Active users" and "Analytics" (core/analytics.py). Never breaks a page."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        try:
+            from core.analytics import record_visit, should_count
+            if should_count(request, response):
+                record_visit(request)
+        except Exception:
+            logging.getLogger("theo.analytics").exception("Could not record the visit")
+        return response

@@ -32,6 +32,43 @@ class InquiryForm(BootstrapFormMixin, forms.ModelForm):
         return phone
 
 
+class ChatStartForm(forms.ModelForm):
+    """First message from the "Agent replies" chat box: a name, a phone OR email (optional) and the question."""
+    contact = forms.CharField(required=False, max_length=120)
+
+    class Meta:
+        model = Inquiry
+        fields = ["name", "message"]
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        if not name:
+            raise forms.ValidationError("Please enter your name.")
+        return name
+
+    def clean_contact(self):
+        value = self.cleaned_data.get("contact", "").strip()
+        if not value:
+            return ""
+        if "@" in value:
+            forms.EmailField().clean(value)  # "Enter a valid email address."
+            return value
+        if not whatsapp_number(value):
+            raise forms.ValidationError("Enter a valid phone number (e.g. 0788 123 456) or an email address.")
+        return value
+
+    def save(self, commit=True):
+        inquiry = super().save(commit=False)
+        contact = self.cleaned_data.get("contact", "")
+        if "@" in contact:
+            inquiry.email = contact
+        else:
+            inquiry.phone = contact
+        if commit:
+            inquiry.save()
+        return inquiry
+
+
 class InquiryResponseForm(BootstrapFormMixin, forms.ModelForm):
     reply = forms.CharField(required=False, max_length=2000, label="Reply to the client",
                             widget=forms.Textarea(attrs={"rows": 4, "placeholder": "Write your message…"}))

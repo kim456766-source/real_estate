@@ -1,0 +1,38 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+{% block title %}Active users{% endblock %}
+{% block page_title %}Active users{% endblock %}
+{% block extra_head %}<meta http-equiv="refresh" content="30">{% endblock %}
+{% block content %}
+<p class="small text-muted"><i class="fa-solid fa-rotate me-1"></i>Online = active in the last {{ minutes }} minutes. This page refreshes itself every 30 seconds.</p>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-user-tie"></i></div><div><div class="value">{{ staff_online|length }}</div><div class="label">Staff online now</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-solid fa-users"></i></div><div><div class="value">{{ visitors_online|length }}</div><div class="label">Visitors online now</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-solid fa-calendar-day"></i></div><div><div class="value">{{ today_visitors|intcomma }}</div><div class="label">Visitors today</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-regular fa-file-lines"></i></div><div><div class="value">{{ today_views|intcomma }}</div><div class="label">Pages viewed today</div></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-xl-6"><div class="dash-card h-100"><div class="card-head"><h6><span class="online-dot me-1"></span>Visitors on the website now</h6></div>
+    <div class="table-responsive"><table class="table table-tp"><thead><tr><th>Device</th><th>Page now</th><th class="text-end">Pages</th><th class="text-end">Last active</th></tr></thead><tbody>
+    {% for v in visitors_online %}
+      <tr><td class="small">{{ v.device_info|default:"Unknown device" }}{% if v.user %}<div class="text-muted">{{ v.user }}</div>{% endif %}</td>
+        <td class="small"><a href="{{ v.last_path }}" target="_blank" rel="noopener">{{ v.last_path|truncatechars:40 }}</a></td>
+        <td class="small text-end">{{ v.hits }}</td><td class="small text-end text-nowrap">{{ v.last_seen|naturaltime }}</td></tr>
+    {% empty %}<tr><td colspan="4" class="text-muted small">No visitors right now.</td></tr>{% endfor %}
+    </tbody></table></div></div></div>
+
+  <div class="col-xl-6"><div class="dash-card h-100"><div class="card-head"><h6>Admins and agents</h6></div>
+    <div class="table-responsive"><table class="table table-tp"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th class="text-end">Last seen</th></tr></thead><tbody>
+    {% for s in staff %}
+      <tr><td class="small fw-semibold"><a href="{% url 'dashboard:user_detail' s.pk %}">{{ s.get_full_name|default:s.username }}</a></td>
+        <td class="small">{{ s.get_role_display }}</td>
+        <td class="small">{% if s.pk in online_ids %}<span class="online-dot me-1"></span><span class="text-success fw-semibold">Online</span>{% else %}<span class="text-muted">Offline</span>{% endif %}</td>
+        <td class="small text-end text-nowrap">{% if s.seen %}{{ s.seen|naturaltime }}{% else %}<span class="text-muted">Not seen yet</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody></table></div>
+    {% if staff_online %}<div class="card-body-tp small text-muted border-top">Online staff pages:
+      {% for v in staff_online %}<div><strong>{{ v.user.get_full_name|default:v.user.username }}</strong> · {{ v.last_path|truncatechars:50 }} · {{ v.device_info }}</div>{% endfor %}</div>{% endif %}
+  </div></div>
+</div>
+{% endblock %}

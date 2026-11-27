@@ -1,8 +1,10 @@
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Max, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import SiteSetting
@@ -11,7 +13,7 @@ from notifications.services import email_support, notify, notify_admins
 from properties.models import Property
 
 from .device import current_key, describe, ensure_key, listing_text, remember_device, whatsapp_link
-from .forms import ClientReplyForm, InquiryForm
+from .forms import ChatStartForm, ClientReplyForm, InquiryForm
 from .models import Inquiry, InquiryMessage
 
 
@@ -172,3 +174,82 @@ def submit_inquiry(request, slug):
                               "phone or computer, where only you and the agent can see it.")
     wa = agent_whatsapp_url(request, prop, inquiry.message, inquiry.name)
     return remember_device(request, redirect(wa or prop.get_absolute_url() + "#contact"))
+
+
+# ---------- "Agent replies" chat box (floating panel) ----------
+CHAT_PER_HOUR = 30
+
+
+def device_conversation(request, prop):
+    """This device's (or account's) latest open conversation about `prop`, if any."""
+    return my_inquiries(request).filter(property=prop).exclude(status=Inquiry.Status.CLOSED).first()
+
+
+def _chat_json(inquiry):
+    agent = inquiry.assigned_agent
+    msgs = [{"id": 0, "mine": True, "who": "You", "text": inquiry.message,
+             "time": timezone.localtime(inquiry.created_at).strftime("%d %b %H:%M")}]
+    for m in inquiry.thread.select_related("author").order_by("created_at", "pk"):
+        msgs.append({"id": m.pk, "mine": m.from_client,
+                     "who": "You" if m.from_client else (m.author.get_full_name() or m.author.username
+                                                         if m.author else "Agent"),
+                     "text": m.body, "time": timezone.localtime(m.created_at).strftime("%d %b %H:%M")})
+    return {"ok": True, "conversation": inquiry.pk, "closed": inquiry.status == Inquiry.Status.CLOSED,
+            "agent": (agent.get_full_name() or agent.username) if agent else "", "messages": msgs}
+
+
+@require_POST
+def chat_send(request, slug):
+    """Send from the chat box. The first message starts a conversation (name + optional phone or email);
+    later ones continue it. Answers with the whole conversation as JSON, so it shows straight away."""
+    prop = get_object_or_404(Property, slug=slug, approval_status=Property.Approval.APPROVED)
+    if prop.is_taken:
+        return JsonResponse({"ok": False, "error": "This property is no longer available."}, status=400)
+    if hit_rate_limit(request, "chat", CHAT_PER_HOUR):
+        return JsonResponse({"ok": False, "error": "You have sent too many messages. Please try again later."},
+                            status=429)
+    inquiry = device_conversation(request, prop)
+    if inquiry:
+        form = ClientReplyForm({"body": request.POST.get("message", "")})
+        if not form.is_valid():
+            return JsonResponse({"ok": False, "error": "Please write a message."}, status=400)
+        body = form.cleaned_data["body"]
+        InquiryMessage.objects.create(inquiry=inquiry, from_client=True, body=body,
+                                      author=request.user if request.user.is_authenticated else None)
+        inquiry.status = Inquiry.Status.IN_PROGRESS
+        inquiry.save(update_fields=["status", "updated_at"])
+        deliver_to_agent(request, inquiry, "New message from a client",
+                         f"{inquiry.name} replied about {prop.reference} - {prop.title}: \"{body[:300]}\"",
+                         client_text=body, first=False)
+        return JsonResponse(_chat_json(inquiry))
+    form = ChatStartForm(request.POST)
+    if not form.is_valid():
+        errors = " ".join(e for errs in form.errors.values() for e in errs)
+        return JsonResponse({"ok": False, "error": errors}, status=400)
+    inquiry = form.save(commit=False)
+    inquiry.property = prop
+    inquiry.assigned_agent = prop.agent
+    inquiry.device_key = ensure_key(request)
+    inquiry.client_ip = client_ip(request)
+    inquiry.device_info = describe(request)
+    if request.user.is_authenticated:
+        inquiry.client = request.user
+        inquiry.email = inquiry.email or request.user.email or ""
+    inquiry.save()
+    deliver_to_agent(request, inquiry, "New property inquiry",
+                     f"{inquiry.name} ({inquiry.phone or inquiry.email or 'no contact given'}) asked about "
+                     f"{prop.reference} - {prop.title}: \"{inquiry.message[:120]}\"", client_text=inquiry.message)
+    return remember_device(request, JsonResponse(_chat_json(inquiry)))
+
+
+def chat_poll(request, pk):
+    """New replies for the open chat box (checked every few seconds while it is open)."""
+    inquiry = get_object_or_404(my_inquiries(request), pk=pk)
+    data = _chat_json(inquiry)
+    # The client is looking at it: the agent's messages count as read
+    agent_ids = [m["id"] for m in data["messages"] if not m["mine"]]
+    if agent_ids:
+        seen = request.session.get(SEEN_KEY, {})
+        if seen.get(str(pk), 0) < max(agent_ids):
+            request.session[SEEN_KEY] = {**seen, str(pk): max(agent_ids)}
+    return JsonResponse(data)

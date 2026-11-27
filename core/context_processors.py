@@ -2,7 +2,7 @@ from django.conf import settings
 from django.utils.functional import SimpleLazyObject
 
 from favorites.session import favorite_ids
-from inquiries.views import unread_count
+from inquiries.views import my_inquiries, unread_count
 
 from .models import SiteSetting
 
@@ -27,9 +27,14 @@ def site_context(request):
         "google_login_enabled": settings.GOOGLE_LOGIN_ENABLED,
         # Badge on the floating "Agent replies" button (only queried when a public page shows it)
         "agent_unread": SimpleLazyObject(lambda: unread_count(request)) if hasattr(request, "session") else 0,
+        # "Agent replies" chat box on pages other than a property: this device's conversations
+        "chat_conversations": SimpleLazyObject(lambda: list(my_inquiries(request)[:6])) if hasattr(request, "session") else [],
     }
     if request.user.is_authenticated:
         ctx["unread_notifications"] = request.user.notifications.filter(is_read=False).count()
+        if request.user.is_admin_role and request.path.startswith("/dashboard/"):
+            from dashboard.models import ProblemReport
+            ctx["open_problem_reports"] = ProblemReport.objects.filter(status=ProblemReport.Status.OPEN).count()
         if request.user.is_superuser:
             from accounts.models import AgentProfile
             ctx["pending_agent_applications"] = AgentProfile.objects.filter(

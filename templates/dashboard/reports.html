@@ -7,8 +7,20 @@
     <a href="{% url 'dashboard:export' 'properties' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Properties</a>
     <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Inquiries</a>
     <a href="{% url 'dashboard:export' 'appointments' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Appointments</a>
-    {% if user.is_admin_role %}<a href="{% url 'dashboard:export' 'payments' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Payments</a>{% endif %}
+    {% if user.is_admin_role %}<a href="{% url 'dashboard:export' 'payments' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Payments</a>
+    <a href="{% url 'dashboard:export' 'agents' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Agents</a>
+    <a href="{% url 'dashboard:export' 'problems' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Problem reports</a>
+    <a href="{% url 'dashboard:export' 'visits' %}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-file-csv me-1"></i>Website visits</a>{% endif %}
   </div></div></div>
+
+<h6 class="text-muted text-uppercase small fw-bold mb-2">At a glance</h6>
+<div class="row g-3 mb-4">
+  {% for title, icon, rows in glance %}
+  <div class="col-md-6 col-xl-4"><div class="dash-card h-100"><div class="card-head"><h6><i class="fa-solid {{ icon }} me-1 text-success"></i>{{ title }}</h6></div>
+    <table class="table table-tp mb-0"><tbody>{% for label, n in rows %}<tr><td class="small">{{ label }}</td><td class="text-end fw-semibold">{{ n|intcomma }}</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endfor %}
+</div>
+{% if user.is_admin_role %}<p class="small"><a href="{% url 'dashboard:problem_reports' %}"><i class="fa-solid fa-flag me-1"></i>Open the problem reports</a> · <a href="{% url 'dashboard:analytics' %}"><i class="fa-solid fa-chart-line me-1"></i>Website analytics</a></p>{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Listings by sector</h6></div>

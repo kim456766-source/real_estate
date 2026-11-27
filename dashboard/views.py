@@ -1012,6 +1012,39 @@ def reports(request):
            "top_viewed": top_viewed, "most_inquired": most_inquired,
            "type_labels": dict(Property.PropertyType.choices),
            "purpose_labels": dict(Property.Purpose.choices)}
+    # Everything that can be reported, at a glance (agents: their own listings and clients only)
+    inquiries = inquiries_for(request.user)
+    appts = appointments_for(request.user)
+    approval = dict(props.values_list("approval_status").annotate(n=Count("id")))
+    availability = dict(props.values_list("availability").annotate(n=Count("id")))
+    inq_status = dict(inquiries.values_list("status").annotate(n=Count("id")))
+    appt_status = dict(appts.values_list("status").annotate(n=Count("id")))
+    glance = [
+        ("Listings", "fa-building", [(label, approval.get(v, 0)) for v, label in Property.Approval.choices]),
+        ("On the market", "fa-tags", [(label, availability.get(v, 0)) for v, label in Property.Availability.choices]
+         + [("Hot deals now", props.filter(Property.hot_deal_q()).count()),
+            (f"Online over {settings.LISTING_CHECK_DAYS} days", listings_to_check(props).count())]),
+        ("Client messages", "fa-envelope", [(label, inq_status.get(v, 0)) for v, label in Inquiry.Status.choices]),
+        ("Visit requests", "fa-calendar-check", [(label, appt_status.get(v, 0)) for v, label in Appointment.Status.choices]),
+    ]
+    if request.user.is_admin_role:
+        from core.models import SiteVisit
+        from dashboard.models import Document, ProblemReport
+        roles = dict(User.objects.filter(is_active=True).values_list("role").annotate(n=Count("id")))
+        problems = dict(ProblemReport.objects.values_list("status").annotate(n=Count("id")))
+        month = timezone.localdate() - timedelta(days=29)
+        glance += [
+            ("People", "fa-users", [(label, roles.get(v, 0)) for v, label in User.Role.choices if roles.get(v, 0)]),
+            ("Problems & messages", "fa-flag", [("Open problem reports", problems.get("open", 0)),
+                                                ("Resolved problem reports", problems.get("resolved", 0)),
+                                                ("Unhandled contact messages", ContactMessage.objects.filter(is_handled=False).count()),
+                                                ("Documents stored", Document.objects.count())]),
+            ("Website (30 days)", "fa-chart-line", [
+                ("Visitors", SiteVisit.objects.filter(day__gte=month, user__isnull=True).count()),
+                ("Pages viewed", SiteVisit.objects.filter(day__gte=month, user__isnull=True).aggregate(s=Sum("hits"))["s"] or 0),
+                ("Payments confirmed", Payment.objects.filter(status=Payment.Status.SUCCESSFUL).count())]),
+        ]
+    ctx["glance"] = glance
     if request.user.is_admin_role:
         ctx["payments_by_method"] = (Payment.objects.filter(status=Payment.Status.SUCCESSFUL)
                                      .values("method", "currency").annotate(total=Sum("amount"), n=Count("id")))
@@ -1049,6 +1082,27 @@ def export_csv(request, kind):
         for a in appointments_for(user):
             w.writerow([a.pk, a.property.reference, a.name, a.phone, a.email, a.agent or "",
                         f"{timezone.localtime(a.scheduled_for):%Y-%m-%d %H:%M}", a.get_status_display()])
+    elif kind == "agents" and user.is_admin_role:
+        w.writerow(["Agent", "Username", "Email", "Phone", "Active", "Listings", "Messages", "Visit requests", "Joined"])
+        for a in (User.objects.filter(role=User.Role.AGENT)
+                  .annotate(listings=Count("agent_properties", distinct=True),
+                            inq=Count("assigned_inquiries", distinct=True),
+                            visits=Count("agent_appointments", distinct=True))):
+            w.writerow([a.get_full_name(), a.username, a.email, a.phone, "Yes" if a.is_active else "No",
+                        a.listings, a.inq, a.visits, f"{a.date_joined:%Y-%m-%d}"])
+    elif kind == "problems" and user.is_admin_role:
+        from dashboard.models import ProblemReport
+        w.writerow(["Date", "Problem", "Status", "Listing", "Message", "From", "Contact", "Handled by", "Note"])
+        for r in ProblemReport.objects.select_related("property", "reporter", "handled_by"):
+            w.writerow([f"{r.created_at:%Y-%m-%d %H:%M}", r.get_kind_display(), r.get_status_display(),
+                        r.property.reference if r.property else "", r.message,
+                        str(r.reporter or r.name or "Anonymous"), r.contact, r.handled_by or "", r.admin_note])
+    elif kind == "visits" and user.is_admin_role:
+        from core.models import SiteVisit
+        w.writerow(["Date", "Visitors", "Pages viewed"])
+        for r in (SiteVisit.objects.filter(user__isnull=True).values("day")
+                  .annotate(n=Count("id"), views=Sum("hits")).order_by("-day")):
+            w.writerow([r["day"], r["n"], r["views"]])
     elif kind == "payments" and user.is_admin_role:
         w.writerow(["Reference", "Payer", "Phone", "Property", "Amount", "Currency", "Method", "Purpose", "Status",
                     "Transaction ID", "Paid at"])

@@ -66,6 +66,7 @@ MIDDLEWARE = [
     "core.middleware.NoCachePrivatePagesMiddleware",
     "core.middleware.ForcePasswordChangeMiddleware",
     "core.middleware.HousekeepingMiddleware",
+    "core.middleware.VisitTrackingMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

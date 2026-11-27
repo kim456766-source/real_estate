@@ -375,3 +375,119 @@ window.initPlaces = function () {
     if (e.persisted && document.body.classList.contains("dash-body")) location.reload();
   });
 })();
+
+// "Agent replies" chat box: opens over the page; on a property page the visitor asks the agent and
+// reads the replies right here (checked every few seconds while the box is open).
+(function () {
+  const toggle = document.getElementById("chatToggle");
+  const panel = document.getElementById("chatPanel");
+  if (!toggle || !panel) return;
+  const cookie = n => { const m = document.cookie.match(new RegExp("(^|;\s*)" + n + "=([^;]*)")); return m ? decodeURIComponent(m[2]) : ""; };
+  const csrf = () => cookie("csrftoken") || (document.querySelector("input[name=csrfmiddlewaretoken]") || {}).value || "";
+  let pollTimer = null, conversation = null, lastCount = 0;
+
+  function setOpen(open) {
+    panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      const field = panel.querySelector("#chatName:not([value]), #chatName[value=''], #chatMessage");
+      if (field) field.focus({ preventScroll: true });
+      startPolling();
+      const badge = toggle.querySelector(".messages-badge");
+      if (badge && conversation) badge.remove();
+    } else {
+      clearInterval(pollTimer); pollTimer = null;
+    }
+  }
+  toggle.addEventListener("click", function (e) { e.preventDefault(); setOpen(panel.hidden); });
+  panel.querySelector("[data-chat-close]").addEventListener("click", () => { setOpen(false); toggle.focus(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !panel.hidden) setOpen(false); });
+
+  const form = document.getElementById("chatForm");
+  if (!form) return;  // not on a property page: the box only lists conversations
+  const thread = document.getElementById("chatThread");
+  const start = document.getElementById("chatStart");
+  const intro = document.getElementById("chatIntro");
+  const message = document.getElementById("chatMessage");
+  const error = document.getElementById("chatError");
+  const body = document.getElementById("chatBody");
+
+  function render(data) {
+    conversation = data.conversation;
+    if (data.messages.length === lastCount) return;
+    lastCount = data.messages.length;
+    thread.replaceChildren(...data.messages.map(function (m) {
+      const wrap = document.createElement("div");
+      wrap.className = "chat-msg " + (m.mine ? "mine" : "theirs");
+      const meta = document.createElement("div");
+      meta.className = "chat-meta"; meta.textContent = m.who + " · " + m.time;
+      const bubble = document.createElement("div");
+      bubble.className = "chat-bubble"; bubble.textContent = m.text;  // text only: never HTML
+      wrap.append(meta, bubble);
+      return wrap;
+    }));
+    if (!data.messages.some(m => !m.mine)) {
+      const wait = document.createElement("div");
+      wait.className = "small text-muted";
+      wait.textContent = "Sent. The agent will reply here" + (data.agent ? " (" + data.agent + ")" : "") + ". You can also use WhatsApp below.";
+      thread.append(wait);
+    }
+    start.hidden = true; intro.hidden = true;
+    body.scrollTop = body.scrollHeight;
+  }
+  const initial = document.getElementById("chatData");
+  const initialData = initial ? JSON.parse(initial.textContent) : null;
+  if (initialData) render(initialData);
+
+  function startPolling() {
+    if (pollTimer || !conversation) return;
+    pollTimer = setInterval(async function () {
+      if (panel.hidden || !conversation) return;
+      try {
+        const res = await fetch(panel.dataset.pollUrl.replace("/0/", "/" + conversation + "/"), { headers: { "X-Requested-With": "XMLHttpRequest" } });
+        if (res.ok) render(await res.json());
+      } catch (e) { /* offline for a moment: try again next time */ }
+    }, 8000);
+  }
+
+  panel.querySelectorAll(".chat-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      message.value = chip.textContent.trim();
+      panel.querySelectorAll(".chat-chip").forEach(c => c.classList.toggle("active", c === chip));
+      message.focus();
+    });
+  });
+  message.addEventListener("keydown", function (e) {  // Enter sends, Shift+Enter = new line
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    error.hidden = true;
+    const text = message.value.trim();
+    const name = document.getElementById("chatName");
+    if (!conversation && !name.value.trim()) { error.textContent = "Please enter your name."; error.hidden = false; name.focus(); return; }
+    if (!text) { error.textContent = "Please write a message."; error.hidden = false; message.focus(); return; }
+    const data = new FormData();
+    data.append("message", text);
+    if (!conversation) {
+      data.append("name", name.value.trim());
+      data.append("contact", document.getElementById("chatContact").value.trim());
+    }
+    const button = form.querySelector(".chat-send");
+    button.disabled = true;
+    try {
+      const res = await fetch(panel.dataset.sendUrl, { method: "POST", body: data,
+        headers: { "X-CSRFToken": csrf(), "X-Requested-With": "XMLHttpRequest" } });
+      const json = await res.json().catch(() => ({ ok: false, error: "Something went wrong. Please try again." }));
+      if (!json.ok) { error.textContent = json.error || "Could not send. Please try again."; error.hidden = false; return; }
+      message.value = "";
+      lastCount = -1; render(json);
+      startPolling();
+    } catch (err) {
+      error.textContent = "Connection problem. Please check your internet and try again."; error.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  });
+})();

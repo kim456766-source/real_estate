@@ -1,0 +1,49 @@
+{% extends "dashboard/base.html" %}
+{% load humanize %}
+{% block title %}Problem reports{% endblock %}
+{% block page_title %}Problem reports{% endblock %}
+{% block content %}
+<p class="small text-muted">Problems reported by visitors (on a listing, or with "Report a problem" at the bottom of the website) and by staff from the Help page.</p>
+<div class="dash-card">
+  <div class="card-head flex-wrap gap-2">
+    <ul class="nav nav-pills small">
+      {% for v, l in statuses %}<li class="nav-item"><a class="nav-link {% if status == v %}active{% endif %}" href="?status={{ v }}">{{ l }}{% for k, n in counts.items %}{% if k == v %} ({{ n }}){% endif %}{% endfor %}</a></li>{% endfor %}
+      <li class="nav-item"><a class="nav-link {% if status == 'all' %}active{% endif %}" href="?status=all">All</a></li>
+    </ul>
+    <form method="get" class="d-flex gap-2"><input type="hidden" name="status" value="{{ status }}">
+      <select name="kind" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Type of problem">
+        <option value="">Every type of problem</option>
+        {% for v, l in kinds %}<option value="{{ v }}" {% if kind == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select></form>
+  </div>
+  <div class="card-body-tp d-grid gap-3">
+  {% for r in page_obj %}
+    <div class="border rounded-3 p-3">
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
+        <div><span class="badge {% if r.kind == 'scam' or r.kind == 'offensive' %}bg-danger{% elif r.kind == 'website' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">{{ r.get_kind_display }}</span>
+          <span class="status-pill st-{% if r.status == 'open' %}pending{% elif r.status == 'resolved' %}approved{% else %}inactive{% endif %} ms-1">{{ r.get_status_display }}</span></div>
+        <span class="small text-muted">{{ r.created_at|date:"d M Y H:i" }} ({{ r.created_at|naturaltime }})</span>
+      </div>
+      {% if r.property %}<div class="small mb-1"><i class="fa-solid fa-building me-1"></i>Listing: <a href="{% url 'dashboard:property_edit' r.property.pk %}">{{ r.property.reference }} · {{ r.property.title }}</a> · Agent: {{ r.property.agent|default:"none" }}</div>{% endif %}
+      <div class="chat-bubble bg-light mb-2">{{ r.message }}</div>
+      <div class="small text-muted">From: {% if r.reporter %}{{ r.reporter }} ({{ r.reporter.get_role_display }}){% else %}{{ r.name|default:"Anonymous visitor" }}{% endif %}{% if r.contact %} · {{ r.contact }}{% endif %} · {{ r.device_info|default:"unknown device" }}{% if r.page %} · page: {{ r.page|truncatechars:50 }}{% endif %}</div>
+      {% if r.handled_by %}<div class="small mt-1"><i class="fa-solid fa-check me-1 text-success"></i>{{ r.get_status_display }} by {{ r.handled_by }} {{ r.handled_at|naturaltime }}{% if r.admin_note %}: {{ r.admin_note }}{% endif %}</div>{% endif %}
+      <form method="post" class="d-flex flex-wrap gap-2 mt-2" action="">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="text" name="note" class="form-control form-control-sm" style="max-width:320px" maxlength="300" placeholder="Note (what was done)" value="{{ r.admin_note }}" aria-label="Note">
+        {% if r.status == 'open' %}
+        <button formaction="{% url 'dashboard:problem_report_action' r.pk 'resolve' %}" class="btn btn-sm btn-success"><i class="fa-solid fa-check me-1"></i>Resolved</button>
+        <button formaction="{% url 'dashboard:problem_report_action' r.pk 'dismiss' %}" class="btn btn-sm btn-light">Dismiss</button>
+        {% else %}
+        <button formaction="{% url 'dashboard:problem_report_action' r.pk 'reopen' %}" class="btn btn-sm btn-light">Reopen</button>
+        {% endif %}
+        {% if r.property %}<a href="{% url 'dashboard:property_edit' r.property.pk %}" class="btn btn-sm btn-outline-primary">Check the listing</a>{% endif %}
+      </form>
+    </div>
+  {% empty %}
+    <p class="text-center text-muted py-5 mb-0">No reports here.</p>
+  {% endfor %}
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}

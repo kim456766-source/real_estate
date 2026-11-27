@@ -27,10 +27,8 @@ property and read the agent's replies right here; elsewhere it lists this device
     <div class="chat-thread" id="chatThread" aria-live="polite"></div>
     <div id="chatStart" {% if chat_data %}hidden{% endif %}>
       <div class="chat-chips" role="group" aria-label="Quick questions">
-        <button type="button" class="chat-chip">Is this property still available?</button>
-        <button type="button" class="chat-chip">Can I schedule a viewing?</button>
-        <button type="button" class="chat-chip">What is the best price?</button>
-      </div>
+        {% for q in ask_choices %}<button type="button" class="chat-chip">{{ q }}</button>
+        {% endfor %}      </div>
     </div>
   </div>
   <form class="chat-panel-foot" id="chatForm" novalidate>

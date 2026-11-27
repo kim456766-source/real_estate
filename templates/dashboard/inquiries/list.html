@@ -2,30 +2,41 @@
 {% block page_title %}Inquiries{% endblock %}
 {% block content %}
 <div class="dash-card">
-  <div class="card-head">
-    <div class="d-flex flex-wrap gap-2">
-      <a href="?" class="btn btn-sm {% if not status %}btn-primary{% else %}btn-light{% endif %}">All</a>
-      {% for v, l in statuses %}<a href="?status={{ v }}" class="btn btn-sm {% if status == v %}btn-primary{% else %}btn-light{% endif %}">{{ l }}</a>{% endfor %}
-    </div>
-    <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-file-csv me-1"></i>Export</a>
+  <div class="card-head flex-wrap gap-2">
+    <form method="get" class="d-flex flex-wrap gap-2">
+      <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" style="min-width:220px" placeholder="Client, property, words in messages" aria-label="Search conversations">
+      <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Status">
+        <option value="">Any status</option>
+        {% for v, l in statuses %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      {% if agents %}<select name="agent" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Agent">
+        <option value="">Every agent</option>
+        <option value="none" {% if agent == 'none' %}selected{% endif %}>No agent</option>
+        {% for a in agents %}<option value="{{ a.pk }}" {% if agent == a.pk|stringformat:'d' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+      </select>{% endif %}
+      <button class="btn btn-sm btn-outline-primary" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+    </form>
+    <div class="d-flex align-items-center gap-2"><span class="small text-muted">{{ total }} conversation{{ total|pluralize }}</span>
+      <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-light btn-sm"><i class="fa-solid fa-file-csv me-1"></i>Export</a></div>
   </div>
   <div class="table-responsive">
     <table class="table table-tp table-hover">
-      <thead><tr><th>#</th><th>Client</th><th>Property</th><th>Message</th><th>Agent</th><th>Date</th><th>Status</th></tr></thead>
+      <thead><tr><th>#</th><th>Client</th><th>Property</th><th>First message</th><th>Agent</th><th>Messages</th><th>Last activity</th><th>Status</th></tr></thead>
       <tbody>
       {% for i in page_obj %}
         <tr onclick="location='{% url 'dashboard:inquiry_detail' i.pk %}'" style="cursor:pointer">
           <td>{{ i.pk }}</td>
-          <td><div class="fw-semibold">{{ i.name }}</div><div class="small text-muted">{{ i.phone|default:i.email }}</div></td>
+          <td><div class="fw-semibold">{{ i.name }}</div><div class="small text-muted">{{ i.phone|default:i.email|default:i.device_info }}</div></td>
           <td class="small"><div class="d-flex align-items-center gap-2">
             {% with cover=i.property.cover_image %}{% if cover %}<img src="{{ cover.image.url }}" alt="" width="56" height="42" class="rounded flex-shrink-0" style="object-fit:cover">{% endif %}{% endwith %}
             <div><span class="fw-semibold">{{ i.property.reference }}</span><div class="text-muted">{{ i.property.title|truncatechars:30 }}</div></div></div></td>
           <td class="small text-muted">{{ i.message|truncatechars:60 }}</td>
           <td class="small">{{ i.assigned_agent|default:"–" }}</td>
-          <td class="small text-nowrap">{{ i.created_at|date:"d M Y" }}</td>
+          <td class="small text-center">{{ i.n_messages|add:1 }}</td>
+          <td class="small text-nowrap">{{ i.updated_at|date:"d M Y H:i" }}<div class="text-muted">started {{ i.created_at|date:"d M" }}</div></td>
           <td><span class="status-pill st-{{ i.status }}">{{ i.get_status_display }}</span></td>
         </tr>
-      {% empty %}<tr><td colspan="7" class="text-center text-muted py-5">No inquiries.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="8" class="text-center text-muted py-5">No conversations.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

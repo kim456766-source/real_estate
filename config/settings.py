@@ -213,7 +213,7 @@ LOGIN_ALERTS_ASYNC = env_bool("LOGIN_ALERTS_ASYNC", "test" not in sys.argv[1:2])
 HOT_DEAL_MAX_DAYS = 180         # an admin can make a listing a hot deal for up to this many days at a time
 NEW_LISTING_DAYS = 7             # "New" badge for a week
 TRENDING_COUNT = 6               # how many listings get the "Trending" badge
-INQUIRY_RETENTION_DAYS = 30      # conversations are deleted this many days after their last message
+INQUIRY_RETENTION_DAYS = 365     # conversations are deleted a year after their last message (admins keep a year of history)
 LISTING_CHECK_DAYS = 30          # remind the agent (or admins) to repost or remove a listing this old
 LISTING_REMIND_AGAIN_DAYS = 7    # ...and again every week until they act on it
 

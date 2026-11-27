@@ -329,9 +329,30 @@ class TheoPropertyTests(TestCase):
         page = self.client.get(self.prop.get_absolute_url())
         self.assertContains(page, 'data-chat-ask="Is this property still available?"')
         self.assertContains(page, "Write my own question")
+        self.assertContains(page, 'id="ask"')  # at the bottom of the listing (left side)
+        self.assertLess(page.content.decode().index('id="ask"'), page.content.decode().index('id="contact"'))
         self.assertNotContains(page, 'name="phone"')
         self.assertNotContains(page, "{#")  # no template notes printed on the page
         self.assertNotContains(self.client.get(reverse("pages:home")), "floating button that opens")
+
+    def test_admin_sees_all_conversations_with_property_and_agent(self):
+        a = Inquiry.objects.create(property=self.prop, name="Alice Buyer", message="Is it available?", assigned_agent=self.agent)
+        InquiryMessage.objects.create(inquiry=a, author=self.agent, body="Yes, still available.")
+        other = Property.objects.filter(approval_status="approved", agent=self.agent2).first()
+        Inquiry.objects.create(property=other, name="Bob Renter", message="Viewing on Sunday?", assigned_agent=self.agent2)
+        self.login(self.admin)
+        url = reverse("dashboard:inquiries")
+        r = self.client.get(url)
+        for text in ("Alice Buyer", "Bob Renter", self.prop.reference, other.reference):
+            self.assertContains(r, text)
+        self.assertEqual([i.name for i in self.client.get(url, {"q": "still available"}).context["page_obj"]], ["Alice Buyer"])
+        self.assertEqual([i.name for i in self.client.get(url, {"agent": self.agent2.pk}).context["page_obj"]
+                          if i.name in ("Alice Buyer", "Bob Renter")], ["Bob Renter"])
+        detail = self.client.get(reverse("dashboard:inquiry_detail", args=[a.pk]))
+        self.assertContains(detail, "Yes, still available.")
+        # agents only see their own
+        self.login(self.agent2)
+        self.assertNotContains(self.client.get(url), "Alice Buyer")
 
     def test_whatsapp_number_formats(self):
         from inquiries.device import whatsapp_number
@@ -412,21 +433,21 @@ class TheoPropertyTests(TestCase):
         agent.post(reverse("dashboard:property_availability", args=[prop.pk, "available"]))
         self.assertIn(prop, list(self.client.get(reverse("properties:list")).context["page_obj"].paginator.object_list))
 
-    def test_old_conversations_deleted_after_a_month(self):
+    def test_old_conversations_deleted_after_a_year(self):
         from django.core.management import call_command
         from inquiries.cleanup import purge_old_inquiries
         old = Inquiry.objects.create(property=self.prop, name="Old", phone="0788000666", message="Hi")
         InquiryMessage.objects.create(inquiry=old, body="Answer")
         recent = Inquiry.objects.create(property=self.prop, name="Recent", phone="0788000777", message="Hi")
-        Inquiry.objects.filter(pk=old.pk).update(updated_at=timezone.now() - timedelta(days=31))
-        Inquiry.objects.filter(pk=recent.pk).update(updated_at=timezone.now() - timedelta(days=29))
+        Inquiry.objects.filter(pk=old.pk).update(updated_at=timezone.now() - timedelta(days=366))
+        Inquiry.objects.filter(pk=recent.pk).update(updated_at=timezone.now() - timedelta(days=300))  # kept: history for admins
         self.assertGreaterEqual(purge_old_inquiries(), 1)
         self.assertFalse(Inquiry.objects.filter(pk=old.pk).exists())
         self.assertFalse(InquiryMessage.objects.filter(inquiry_id=old.pk).exists())
         self.assertTrue(Inquiry.objects.filter(pk=recent.pk).exists())
         call_command("purge_old_inquiries", stdout=StringIO())  # the manual command also works
         # and it runs by itself on normal traffic
-        Inquiry.objects.filter(pk=recent.pk).update(updated_at=timezone.now() - timedelta(days=40))
+        Inquiry.objects.filter(pk=recent.pk).update(updated_at=timezone.now() - timedelta(days=400))
         cache.clear()
         self.client.get(reverse("pages:home"))
         self.assertFalse(Inquiry.objects.filter(pk=recent.pk).exists())
@@ -1142,7 +1163,7 @@ class TheoPropertyTests(TestCase):
     def test_chat_box_on_property_page(self):
         page = self.client.get(self.prop.get_absolute_url())
         for text in ("Ask about this property and get a reply right here.", "Is this property still available?",
-                     "Can I schedule a viewing?", "What is the best price?"):
+                     "Can we schedule a time to view it?", "Is the price negotiable?"):
             self.assertContains(page, text)
         for text in ('placeholder="Your name"', 'placeholder="Phone or email (optional)"'):
             self.assertNotContains(page, text)  # no name, phone or email needed
@@ -1163,10 +1184,10 @@ class TheoPropertyTests(TestCase):
         poll = self.client.get(reverse("inquiries:chat_poll", args=[inq.pk]), **ajax).json()
         self.assertEqual([m["text"] for m in poll["messages"]], ["Is this property still available?", "Yes, it is."])
         # the next message continues the same conversation; the page shows it when reopened
-        data = self.client.post(send, {"message": "Can I schedule a viewing?"}, **ajax).json()
+        data = self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()
         self.assertEqual(data["conversation"], inq.pk)
         self.assertEqual(len(data["messages"]), 3)
-        self.assertContains(self.client.get(self.prop.get_absolute_url()), "Can I schedule a viewing?")
+        self.assertContains(self.client.get(self.prop.get_absolute_url()), "Can we schedule a time to view it?")
         other = self.client_class()
         # nobody else can read the conversation
         self.assertEqual(other.get(reverse("inquiries:chat_poll", args=[inq.pk])).status_code, 404)

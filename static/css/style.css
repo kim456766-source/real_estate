@@ -596,3 +596,4 @@ img { max-width: 100%; }
 .ask-choice:hover, .ask-choice:focus-visible { background: #f5ecd2; color: #5c4400; }
 .ask-choice .fa-chevron-right { font-size: .75rem; opacity: .6; }
 .ask-choice-own { border-style: dashed; background: #fff; color: #444; }
+@media (min-width: 768px) { .ask-section .ask-choices { grid-template-columns: 1fr 1fr; } }

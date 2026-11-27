@@ -804,12 +804,26 @@ def agent_create(request):
 # ---------- inquiries ----------
 @dashboard_required
 def inquiry_list(request):
-    qs = inquiries_for(request.user).prefetch_related("property__images")
+    """Every conversation (admins: all of them; agents: their own), with the property, the agent, how many
+    messages and the last activity. Search by client, property or words in the messages."""
+    qs = (inquiries_for(request.user).prefetch_related("property__images")
+          .annotate(n_messages=Count("thread", distinct=True)).order_by("-updated_at"))
     status = request.GET.get("status", "")
+    q = request.GET.get("q", "").strip()
+    agent = request.GET.get("agent", "")
     if status:
         qs = qs.filter(status=status)
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q)
+                       | Q(property__reference__icontains=q) | Q(property__title__icontains=q)
+                       | Q(message__icontains=q) | Q(thread__body__icontains=q)).distinct()
+    if agent and request.user.is_admin_role:
+        qs = qs.filter(assigned_agent__isnull=True) if agent == "none" else qs.filter(assigned_agent_id=agent)
     return render(request, "dashboard/inquiries/list.html", {
-        "page_obj": paginate(request, qs), "status": status, "statuses": Inquiry.Status.choices})
+        "page_obj": paginate(request, qs), "status": status, "statuses": Inquiry.Status.choices, "q": q,
+        "agent": agent, "total": qs.count(),
+        "agents": (User.objects.filter(role=User.Role.AGENT).order_by("first_name", "username")
+                   if request.user.is_admin_role else [])})
 
 
 @dashboard_required

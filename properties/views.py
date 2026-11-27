@@ -37,9 +37,9 @@ SUBMISSIONS_PER_HOUR = 5
 # Questions a client can choose on a property page: the chosen one is sent to the agent in "Agent replies"
 ASK_CHOICES = [
     "Is this property still available?",
-    "Can I schedule a viewing?",
-    "What is the best price?",
-    "Are the documents (title deed) ready?",
+    "Can we schedule a time to view it?",
+    "Is the price negotiable?",
+    "Are the documents ready?",
     "Where exactly is it located?",
 ]
 

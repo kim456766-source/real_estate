@@ -1137,20 +1137,20 @@ class TheoPropertyTests(TestCase):
     # ---------- "Agent replies" chat box ----------
     def test_chat_box_on_property_page(self):
         page = self.client.get(self.prop.get_absolute_url())
-        for text in ("Ask about this property and get a reply right here.", 'placeholder="Your name"',
-                     'placeholder="Phone or email (optional)"', "Is this property still available?",
+        for text in ("Ask about this property and get a reply right here.", "Is this property still available?",
                      "Can I schedule a viewing?", "What is the best price?"):
             self.assertContains(page, text)
+        for text in ('placeholder="Your name"', 'placeholder="Phone or email (optional)"'):
+            self.assertNotContains(page, text)  # no name, phone or email needed
         send = reverse("inquiries:chat_send", args=[self.prop.slug])
-        ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
-        # a name is needed; phone or email is optional but must be valid if given
-        self.assertEqual(self.client.post(send, {"name": "", "message": "Hi"}, **ajax).status_code, 400)
-        self.assertEqual(self.client.post(send, {"name": "Eric", "contact": "abc", "message": "Hi"}, **ajax).status_code, 400)
-        r = self.client.post(send, {"name": "Eric", "contact": "", "message": "Is this property still available?"}, **ajax)
+        ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest", "HTTP_USER_AGENT": "Mozilla/5.0 (Linux; Android 14) Mobile Chrome/120"}
+        self.assertEqual(self.client.post(send, {"message": ""}, **ajax).status_code, 400)
+        r = self.client.post(send, {"message": "Is this property still available?"}, **ajax)
         data = r.json()
         self.assertTrue(data["ok"])
         inq = Inquiry.objects.get(pk=data["conversation"])
-        self.assertEqual((inq.name, inq.phone, inq.email, inq.assigned_agent), ("Eric", "", "", self.agent))
+        self.assertEqual((inq.name, inq.phone, inq.email, inq.assigned_agent, inq.device_info),
+                         ("Website visitor", "", "", self.agent, "Android phone · Chrome"))
         self.assertTrue(Notification.objects.filter(user=self.agent, title="New property inquiry").exists())
         # the agent answers in the dashboard; the reply shows in the box (polling)
         agent = self.client_class()
@@ -1163,10 +1163,7 @@ class TheoPropertyTests(TestCase):
         self.assertEqual(data["conversation"], inq.pk)
         self.assertEqual(len(data["messages"]), 3)
         self.assertContains(self.client.get(self.prop.get_absolute_url()), "Can I schedule a viewing?")
-        # with an email: saved as email
         other = self.client_class()
-        d = other.post(send, {"name": "Ann", "contact": "ann@example.com", "message": "Hello"}, **ajax).json()
-        self.assertEqual(Inquiry.objects.get(pk=d["conversation"]).email, "ann@example.com")
         # nobody else can read the conversation
         self.assertEqual(other.get(reverse("inquiries:chat_poll", args=[inq.pk])).status_code, 404)
         # elsewhere the box lists this device's conversations
@@ -1182,7 +1179,16 @@ class TheoPropertyTests(TestCase):
         self.client_class().get("/healthz/", **browser)
         from core.models import SiteVisit
         v = SiteVisit.objects.get(user__isnull=True)
-        self.assertEqual((v.hits, v.last_path, v.device_kind), (2, self.prop.get_absolute_url(), "Phone"))
+        self.assertEqual((v.hits, v.opens, v.last_path, v.device_kind), (2, 1, self.prop.get_absolute_url(), "Phone"))
+        # coming back after more than 30 minutes = the site was opened again
+        SiteVisit.objects.filter(pk=v.pk).update(last_seen=timezone.now() - timedelta(minutes=31))
+        visitor.get(reverse("pages:home"), **browser)
+        v.refresh_from_db()
+        self.assertEqual((v.hits, v.opens), (3, 2))
+        # a visitor who asked an agent is shown by name on Active users
+        visitor.post(reverse("inquiries:submit", args=[self.prop.slug]),
+                     {"name": "Diane", "phone": "0788111222", "message": "Hi", "on_whatsapp": "on"}, **browser)
+        visitor.get(reverse("pages:about"), **browser)
         agent = self.client_class()
         agent.force_login(self.agent)
         agent.get(reverse("dashboard:home"), **browser)
@@ -1192,11 +1198,13 @@ class TheoPropertyTests(TestCase):
         self.login(self.admin)
         r = self.client.get(reverse("dashboard:active_users"))
         self.assertContains(r, "iPhone · Safari")
+        self.assertContains(r, "Diane")
         self.assertIn(self.agent.pk, r.context["online_ids"])
         self.assertEqual(len(r.context["visitors_online"]), 1)
         r = self.client.get(reverse("dashboard:analytics"), {"days": "7"})
-        self.assertEqual(r.context["totals"]["visitors"], 1)
-        self.assertEqual(r.context["totals"]["views"], 2)
+        self.assertEqual(r.context["totals"]["opens"], 2)
+        self.assertEqual(r.context["totals"]["clients"], Inquiry.objects.count())  # Diane + the demo client
+        self.assertContains(r, "Diane")
         self.assertEqual(self.client.get(reverse("dashboard:export", args=["visits"]))["Content-Type"], "text/csv")
 
     def test_documents_are_private(self):

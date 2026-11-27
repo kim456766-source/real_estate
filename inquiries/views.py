@@ -211,8 +211,8 @@ def _chat_json(inquiry):
 
 @require_POST
 def chat_send(request, slug):
-    """Send from the chat box. The first message starts a conversation (name + optional phone or email);
-    later ones continue it. Answers with the whole conversation as JSON, so it shows straight away."""
+    """Send from the chat box. The first message starts a conversation (just the message: no name, phone
+    or email needed); later ones continue it. Answers with the whole conversation as JSON, so it shows straight away."""
     prop = get_object_or_404(Property, slug=slug, approval_status=Property.Approval.APPROVED)
     if prop.is_taken:
         return JsonResponse({"ok": False, "error": "This property is no longer available."}, status=400)
@@ -243,12 +243,13 @@ def chat_send(request, slug):
     inquiry.device_key = ensure_key(request)
     inquiry.client_ip = client_ip(request)
     inquiry.device_info = describe(request)
-    if request.user.is_authenticated:
+    if request.user.is_authenticated:  # signed in: their name and email are known already
         inquiry.client = request.user
-        inquiry.email = inquiry.email or request.user.email or ""
+        inquiry.name = request.user.get_full_name() or request.user.username
+        inquiry.email = request.user.email or ""
     inquiry.save()
     deliver_to_agent(request, inquiry, "New property inquiry",
-                     f"{inquiry.name} ({inquiry.phone or inquiry.email or 'no contact given'}) asked about "
+                     f"{inquiry.name} ({inquiry.phone or inquiry.email or inquiry.device_info or 'website chat'}) asked about "
                      f"{prop.reference} - {prop.title}: \"{inquiry.message[:120]}\"", client_text=inquiry.message)
     return remember_device(request, JsonResponse(_chat_json(inquiry)))
 

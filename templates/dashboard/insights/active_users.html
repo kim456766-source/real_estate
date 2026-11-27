@@ -8,15 +8,16 @@
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-user-tie"></i></div><div><div class="value">{{ staff_online|length }}</div><div class="label">Staff online now</div></div></div></div>
   <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-solid fa-users"></i></div><div><div class="value">{{ visitors_online|length }}</div><div class="label">Visitors online now</div></div></div></div>
-  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-solid fa-calendar-day"></i></div><div><div class="value">{{ today_visitors|intcomma }}</div><div class="label">Visitors today</div></div></div></div>
-  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-regular fa-file-lines"></i></div><div><div class="value">{{ today_views|intcomma }}</div><div class="label">Pages viewed today</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-solid fa-calendar-day"></i></div><div><div class="value">{{ today_opens|intcomma }}</div><div class="label">Times the site was opened today ({{ today_visitors }} visitor{{ today_visitors|pluralize }})</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-regular fa-envelope"></i></div><div><div class="value">{{ today_asked|intcomma }}</div><div class="label">Clients who asked agents today · {{ today_views|intcomma }} pages viewed</div></div></div></div>
 </div>
 
 <div class="row g-3">
   <div class="col-xl-6"><div class="dash-card h-100"><div class="card-head"><h6><span class="online-dot me-1"></span>Visitors on the website now</h6></div>
     <div class="table-responsive"><table class="table table-tp"><thead><tr><th>Device</th><th>Page now</th><th class="text-end">Pages</th><th class="text-end">Last active</th></tr></thead><tbody>
     {% for v in visitors_online %}
-      <tr><td class="small">{{ v.device_info|default:"Unknown device" }}{% if v.user %}<div class="text-muted">{{ v.user }}</div>{% endif %}</td>
+      <tr><td class="small">{% if v.client %}<a href="{% url 'dashboard:inquiry_detail' v.client.pk %}" class="fw-semibold"><i class="fa-regular fa-user me-1"></i>{{ v.client.name }}</a><div class="text-muted">asked about {{ v.client.property.reference }}</div>{% endif %}
+        {{ v.device_info|default:"Unknown device" }}{% if v.user %}<div class="text-muted">{{ v.user }}</div>{% endif %}</td>
         <td class="small"><a href="{{ v.last_path }}" target="_blank" rel="noopener">{{ v.last_path|truncatechars:40 }}</a></td>
         <td class="small text-end">{{ v.hits }}</td><td class="small text-end text-nowrap">{{ v.last_seen|naturaltime }}</td></tr>
     {% empty %}<tr><td colspan="4" class="text-muted small">No visitors right now.</td></tr>{% endfor %}

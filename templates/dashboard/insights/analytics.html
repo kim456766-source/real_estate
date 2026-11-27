@@ -4,7 +4,7 @@
 {% block page_title %}Analytics{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <p class="small text-muted mb-0">Website visitors (staff not counted), what they looked at and how many contacted an agent.</p>
+  <p class="small text-muted mb-0">How many times the website was opened, and the clients who asked agents about a property (staff not counted).</p>
   <div class="btn-group btn-group-sm" role="group" aria-label="Period">
     <a href="?days=7" class="btn btn-{% if days == 7 %}primary{% else %}light{% endif %}">7 days</a>
     <a href="?days=30" class="btn btn-{% if days == 30 %}primary{% else %}light{% endif %}">30 days</a>
@@ -12,14 +12,14 @@
   </div>
 </div>
 <div class="row g-3 mb-4">
-  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-users"></i></div><div><div class="value">{{ totals.visitors|intcomma }}</div><div class="label">Visitors</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-globe"></i></div><div><div class="value">{{ totals.opens|intcomma }}</div><div class="label">Times the site was opened ({{ totals.visitors|intcomma }} visitors)</div></div></div></div>
   <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-gray"><i class="fa-regular fa-file-lines"></i></div><div><div class="value">{{ totals.views|intcomma }}</div><div class="label">Pages viewed ({{ totals.pages_per_visitor }} per visitor)</div></div></div></div>
-  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-regular fa-envelope"></i></div><div><div class="value">{{ totals.inquiries|intcomma }}</div><div class="label">Messages to agents · {{ totals.visits }} visit requests</div></div></div></div>
+  <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-yellow"><i class="fa-regular fa-envelope"></i></div><div><div class="value">{{ totals.clients|intcomma }}</div><div class="label">Clients who asked agents ({{ totals.inquiries }} messages · {{ totals.visits }} visit requests)</div></div></div></div>
   <div class="col-6 col-xl-3"><div class="stat-card d-flex gap-3 align-items-center"><div class="icon icon-green"><i class="fa-solid fa-bullseye"></i></div><div><div class="value">{{ totals.conversion }}%</div><div class="label">Visitors who messaged an agent</div></div></div></div>
 </div>
 <div class="row g-3">
-  <div class="col-xl-8"><div class="dash-card h-100"><div class="card-head"><h6>Visitors, pages and messages per day</h6></div>
-    <div class="card-body-tp"><canvas id="trafficChart" height="120" aria-label="Visitors, pages viewed and messages per day" role="img"></canvas></div></div></div>
+  <div class="col-xl-8"><div class="dash-card h-100"><div class="card-head"><h6>Times opened and clients who asked, per day</h6></div>
+    <div class="card-body-tp"><canvas id="trafficChart" height="120" aria-label="Times the site was opened, pages viewed and clients who asked, per day" role="img"></canvas></div></div></div>
   <div class="col-xl-4"><div class="dash-card h-100"><div class="card-head"><h6>Devices</h6></div>
     <div class="card-body-tp">{% if chart.device_values %}<canvas id="deviceChart" height="200" aria-label="Visitors by device" role="img"></canvas>{% else %}<p class="text-muted small">No visitors yet.</p>{% endif %}</div></div></div>
   <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Where visitors arrive</h6></div>
@@ -28,6 +28,20 @@
     <table class="table table-tp"><tbody>{% for p in top_viewed %}<tr><td class="small"><a href="{{ p.get_absolute_url }}" target="_blank">{{ p.title|truncatechars:34 }}</a></td><td class="text-end small fw-semibold">{{ p.views|intcomma }}</td></tr>{% empty %}<tr><td class="text-muted small">No data</td></tr>{% endfor %}</tbody></table></div></div>
   <div class="col-lg-4"><div class="dash-card h-100"><div class="card-head"><h6>Most messaged listings ({{ days }} days)</h6></div>
     <table class="table table-tp"><tbody>{% for p in top_inquired %}<tr><td class="small"><a href="{{ p.get_absolute_url }}" target="_blank">{{ p.title|truncatechars:34 }}</a></td><td class="text-end small fw-semibold">{{ p.n }}</td></tr>{% empty %}<tr><td class="text-muted small">No messages yet</td></tr>{% endfor %}</tbody></table></div></div>
+</div>
+<div class="dash-card mt-3"><div class="card-head"><h6><i class="fa-regular fa-envelope me-1"></i>Clients who asked agents about a property ({{ days }} days)</h6>
+  <a href="{% url 'dashboard:export' 'inquiries' %}" class="btn btn-sm btn-light"><i class="fa-solid fa-file-csv me-1"></i>Download</a></div>
+  <div class="table-responsive"><table class="table table-tp"><thead><tr><th>Client</th><th>Contact</th><th>Property</th><th>Agent</th><th>Status</th><th class="text-end">When</th></tr></thead><tbody>
+  {% for i in asked %}
+    <tr><td class="small fw-semibold"><a href="{% url 'dashboard:inquiry_detail' i.pk %}">{{ i.name }}</a><div class="text-muted fw-normal">{{ i.device_info }}</div></td>
+      <td class="small">{{ i.phone|default:i.email|default:"–" }}</td>
+      <td class="small">{{ i.property.reference }} · {{ i.property.title|truncatechars:30 }}</td>
+      <td class="small">{{ i.assigned_agent|default:"–" }}</td>
+      <td><span class="status-pill st-{{ i.status }}">{{ i.get_status_display }}</span></td>
+      <td class="small text-end text-nowrap">{{ i.created_at|date:"d M H:i" }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-muted small">No client has asked an agent in this period yet.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if asked|length == 50 %}<div class="card-body-tp small text-muted">Showing the latest 50. See all under <a href="{% url 'dashboard:inquiries' %}">Inquiries</a>.</div>{% endif %}
 </div>
 {{ chart|json_script:"analytics-data" }}
 {% endblock %}
@@ -38,9 +52,9 @@
   Chart.defaults.font.family = "Inter, system-ui, sans-serif";
   new Chart(document.getElementById("trafficChart"), {
     data: { labels: a.labels, datasets: [
-      { type: "bar", label: "Visitors", data: a.visitors, backgroundColor: "#146c43", borderRadius: 4 },
+      { type: "bar", label: "Times opened", data: a.opens, backgroundColor: "#146c43", borderRadius: 4 },
       { type: "line", label: "Pages viewed", data: a.views, borderColor: "#5f6b76", backgroundColor: "#5f6b76", tension: .3, pointRadius: 2 },
-      { type: "line", label: "Messages", data: a.inquiries, borderColor: "#d9a21b", backgroundColor: "#d9a21b", tension: .3, pointRadius: 3 } ] },
+      { type: "line", label: "Clients who asked", data: a.inquiries, borderColor: "#d9a21b", backgroundColor: "#d9a21b", tension: .3, pointRadius: 3 } ] },
     options: { plugins: { legend: { position: "bottom" } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
   });
   const dc = document.getElementById("deviceChart");

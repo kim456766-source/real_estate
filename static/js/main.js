@@ -390,7 +390,7 @@ window.initPlaces = function () {
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
     if (open) {
-      const field = panel.querySelector("#chatName:not([value]), #chatName[value=''], #chatMessage");
+      const field = panel.querySelector("#chatMessage");
       if (field) field.focus({ preventScroll: true });
       startPolling();
       const badge = toggle.querySelector(".messages-badge");
@@ -465,15 +465,9 @@ window.initPlaces = function () {
     e.preventDefault();
     error.hidden = true;
     const text = message.value.trim();
-    const name = document.getElementById("chatName");
-    if (!conversation && !name.value.trim()) { error.textContent = "Please enter your name."; error.hidden = false; name.focus(); return; }
     if (!text) { error.textContent = "Please write a message."; error.hidden = false; message.focus(); return; }
     const data = new FormData();
     data.append("message", text);
-    if (!conversation) {
-      data.append("name", name.value.trim());
-      data.append("contact", document.getElementById("chatContact").value.trim());
-    }
     const button = form.querySelector(".chat-send");
     button.disabled = true;
     try {

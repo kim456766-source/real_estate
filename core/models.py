@@ -80,7 +80,9 @@ class SiteVisit(models.Model):
     visitor_key = models.CharField(max_length=64)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
                              related_name="site_visits")
-    hits = models.PositiveIntegerField(default=1)
+    hits = models.PositiveIntegerField(default=1)  # pages viewed
+    # Times the site was opened: the first page, or coming back after SESSION_GAP_MINUTES away
+    opens = models.PositiveIntegerField(default=1)
     first_seen = models.DateTimeField(default=timezone.now)
     last_seen = models.DateTimeField(default=timezone.now, db_index=True)
     first_path = models.CharField(max_length=200, blank=True)

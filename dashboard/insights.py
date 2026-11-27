@@ -40,6 +40,13 @@ def active_users(request):
     online = SiteVisit.objects.filter(last_seen__gte=since).select_related("user").order_by("-last_seen")
     staff_online = [v for v in online if v.user and v.user.uses_dashboard]
     visitors_online = [v for v in online if not (v.user and v.user.uses_dashboard)]
+    # A visitor who asked an agent about a property is known by name (same device key as their message)
+    known = {}
+    for inq in (Inquiry.objects.filter(device_key__in=[v.visitor_key for v in visitors_online])
+                .exclude(device_key="").select_related("property").order_by("created_at")):
+        known[inq.device_key] = inq
+    for v in visitors_online:
+        v.client = known.get(v.visitor_key)
     staff = (User.objects.filter(Q(role__in=[User.Role.ADMIN, User.Role.AGENT]) | Q(is_superuser=True), is_active=True)
              .annotate(seen=Max("site_visits__last_seen")).order_by("-seen", "first_name"))
     online_ids = {v.user_id for v in staff_online}
@@ -48,6 +55,8 @@ def active_users(request):
         "staff_online": staff_online, "visitors_online": visitors_online, "staff": staff, "online_ids": online_ids,
         "minutes": ACTIVE_MINUTES,
         "today_visitors": today.exclude(user__role__in=[User.Role.ADMIN, User.Role.AGENT]).count(),
+        "today_opens": today.exclude(user__role__in=[User.Role.ADMIN, User.Role.AGENT]).aggregate(s=Sum("opens"))["s"] or 0,
+        "today_asked": Inquiry.objects.filter(created_at__date=timezone.localdate()).count(),
         "today_views": today.aggregate(s=Sum("hits"))["s"] or 0,
     })
 
@@ -59,33 +68,39 @@ def analytics(request):
     start = timezone.localdate() - timedelta(days=days - 1)
     visits = SiteVisit.objects.filter(day__gte=start).exclude(user__role__in=[User.Role.ADMIN, User.Role.AGENT])
     since = timezone.now() - timedelta(days=days)
-    per_day = {r["day"]: r for r in visits.values("day").annotate(visitors=Count("id"), views=Sum("hits"))}
+    per_day = {r["day"]: r for r in visits.values("day").annotate(visitors=Count("id"), views=Sum("hits"),
+                                                                    opens=Sum("opens"))}
     inq_day = {r["d"]: r["n"] for r in Inquiry.objects.filter(created_at__gte=since)
                .annotate(d=TruncDate("created_at")).values("d").annotate(n=Count("id"))}
-    labels, visitors, views, inquiries = [], [], [], []
+    labels, visitors, views, inquiries, opens = [], [], [], [], []
     for i in range(days):
         d = start + timedelta(days=i)
         labels.append(d.strftime("%d %b"))
         visitors.append(per_day.get(d, {}).get("visitors", 0))
+        opens.append(per_day.get(d, {}).get("opens", 0) or 0)
         views.append(per_day.get(d, {}).get("views", 0) or 0)
         inquiries.append(inq_day.get(d, 0))
     devices = {}
     for v in visits.only("device_info"):
         devices[v.device_kind] = devices.get(v.device_kind, 0) + 1
     total_visitors = sum(visitors)
+    asked = (Inquiry.objects.filter(created_at__gte=since).select_related("property", "assigned_agent")
+             .order_by("-created_at"))
     total_inquiries = Inquiry.objects.filter(created_at__gte=since).count()
     landing = (visits.exclude(first_path="").values("first_path").annotate(n=Count("id")).order_by("-n")[:10])
     public = Property.objects.filter(approval_status=Property.Approval.APPROVED)
     return render(request, "dashboard/insights/analytics.html", {
         "days": days,
         "totals": {
-            "visitors": total_visitors, "views": sum(views), "inquiries": total_inquiries,
+            "visitors": total_visitors, "views": sum(views), "inquiries": total_inquiries, "opens": sum(opens),
+            "clients": asked.values("phone", "email", "device_key", "name").distinct().count(),
             "visits": Appointment.objects.filter(created_at__gte=since).count(),
             "conversion": round(total_inquiries * 100 / total_visitors, 1) if total_visitors else 0,
             "pages_per_visitor": round(sum(views) / total_visitors, 1) if total_visitors else 0,
             "new_listings": Property.objects.filter(created_at__gte=since).count(),
         },
-        "chart": {"labels": labels, "visitors": visitors, "views": views, "inquiries": inquiries,
+        "asked": asked[:50],
+        "chart": {"labels": labels, "visitors": visitors, "views": views, "inquiries": inquiries, "opens": opens,
                   "device_labels": list(devices), "device_values": list(devices.values())},
         "landing": landing,
         "top_viewed": public.order_by("-views")[:8],

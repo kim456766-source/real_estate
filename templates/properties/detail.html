@@ -175,7 +175,7 @@
       <section class="ask-section mt-5" id="ask" aria-labelledby="askTitle">
         <h4 id="askTitle" class="mb-1"><i class="fa-regular fa-comments me-2" style="color:#d97757"></i>Ask the agent</h4>
         <p class="text-muted small mb-3">Choose a question: it goes straight to the agent, and the reply appears in <strong>Agent replies</strong>.
-          Private: only you and the agent see it. No name or phone number needed.</p>
+          Private: only you and the agent see it. Just write your name: no phone number needed.</p>
         {% csrf_token %}
         <div class="ask-choices" role="group" aria-label="Questions for the agent">
           {% for q in ask_choices %}

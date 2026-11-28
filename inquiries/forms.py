@@ -33,21 +33,19 @@ class InquiryForm(BootstrapFormMixin, forms.ModelForm):
 
 
 class ChatStartForm(forms.ModelForm):
-    """First message from the "Agent replies" chat box: only the question. No name, phone or email is asked:
-    the conversation stays on the client's device, and the agent sees it under the property."""
-
-    VISITOR_NAME = "Website visitor"
+    """First message from the "Agent replies" chat box: the client's name (so the agent knows who is
+    writing) and the question. No phone or email is asked: the conversation stays on the client's device."""
 
     class Meta:
         model = Inquiry
-        fields = ["message"]
+        fields = ["name", "message"]
+        error_messages = {"name": {"required": "Please write your name, so the agent knows who is asking."}}
 
-    def save(self, commit=True):
-        inquiry = super().save(commit=False)
-        inquiry.name = inquiry.name or self.VISITOR_NAME
-        if commit:
-            inquiry.save()
-        return inquiry
+    def clean_name(self):
+        name = " ".join(self.cleaned_data["name"].split())
+        if len(name) < 2:
+            raise forms.ValidationError("Please write your name, so the agent knows who is asking.")
+        return name[:120]
 
 
 class InquiryResponseForm(BootstrapFormMixin, forms.ModelForm):

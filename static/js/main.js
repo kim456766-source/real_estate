@@ -390,7 +390,8 @@ window.initPlaces = function () {
     panel.hidden = !open;
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
     if (open) {
-      const field = panel.querySelector("#chatMessage");
+      const nameBox = panel.querySelector("#chatName");
+      const field = nameBox && !nameBox.closest("[hidden]") && !nameBox.value.trim() ? nameBox : panel.querySelector("#chatMessage");
       if (field) field.focus({ preventScroll: true });
       startPolling();
       const badge = toggle.querySelector(".messages-badge");
@@ -441,9 +442,18 @@ window.initPlaces = function () {
       e.preventDefault();
       setOpen(true);
       const q = link.dataset.chatAsk;
-      if (q) { message.value = q; form.requestSubmit(); } else { message.focus(); }
+      const name = document.getElementById("chatName");
+      if (q) message.value = q;
+      if (!conversation && name && !name.value.trim()) {  // first message: the name is needed
+        error.textContent = "Write your name, then press Send."; error.hidden = false; name.focus();
+      } else if (q) { form.requestSubmit(); } else { message.focus(); }
     });
   });
+
+  // A returning visitor's name is filled in for them (kept only on this device)
+  const savedName = (function () { try { return localStorage.getItem("tp_chat_name") || ""; } catch (e) { return ""; } })();
+  const nameInput = document.getElementById("chatName");
+  if (nameInput && !nameInput.value && savedName) nameInput.value = savedName;
 
   const initial = document.getElementById("chatData");
   const initialData = initial ? JSON.parse(initial.textContent) : null;
@@ -475,9 +485,17 @@ window.initPlaces = function () {
     e.preventDefault();
     error.hidden = true;
     const text = message.value.trim();
+    const nameBox = document.getElementById("chatName");
+    if (!conversation && nameBox && !nameBox.value.trim()) {
+      error.textContent = "Please write your name, so the agent knows who is asking."; error.hidden = false; nameBox.focus(); return;
+    }
     if (!text) { error.textContent = "Please write a message."; error.hidden = false; message.focus(); return; }
     const data = new FormData();
     data.append("message", text);
+    if (!conversation && nameBox) {
+      data.append("name", nameBox.value.trim());
+      try { localStorage.setItem("tp_chat_name", nameBox.value.trim()); } catch (err) {}
+    }
     const button = form.querySelector(".chat-send");
     button.disabled = true;
     try {

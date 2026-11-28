@@ -1168,21 +1168,20 @@ class TheoPropertyTests(TestCase):
         for text in ("Ask about this property and get a reply right here.", "Is this property still available?",
                      "Can we schedule a time to view it?", "Is the price negotiable?"):
             self.assertContains(page, text)
-        for text in ('placeholder="Your name"', 'placeholder="Phone or email (optional)"'):
-            self.assertNotContains(page, text)  # no name, phone or email needed
+        self.assertContains(page, 'placeholder="Write your name"')  # the name is asked...
+        self.assertNotContains(page, 'placeholder="Phone or email (optional)"')  # ...but no phone or email
         send = reverse("inquiries:chat_send", args=[self.prop.slug])
         ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest", "HTTP_USER_AGENT": "Mozilla/5.0 (Linux; Android 14) Mobile Chrome/120"}
-        self.assertEqual(self.client.post(send, {"message": ""}, **ajax).status_code, 400)
-        r = self.client.post(send, {"message": "Is this property still available?"}, **ajax)
+        self.assertEqual(self.client.post(send, {"name": "Eric", "message": ""}, **ajax).status_code, 400)
+        no_name = self.client.post(send, {"name": " ", "message": "Hi"}, **ajax)
+        self.assertEqual(no_name.status_code, 400)
+        self.assertIn("write your name", no_name.json()["error"])
+        r = self.client.post(send, {"name": "  Eric   Mugabo ", "message": "Is this property still available?"}, **ajax)
         data = r.json()
         self.assertTrue(data["ok"])
         inq = Inquiry.objects.get(pk=data["conversation"])
         self.assertEqual((inq.name, inq.phone, inq.email, inq.assigned_agent, inq.device_info),
-                         (f"Visitor {inq.pk} · Android phone", "", "", self.agent, "Android phone · Chrome"))
-        # two visitors asking the same thing get different labels, so the agent answers the right one
-        twin = self.client_class().post(send, {"message": "Is this property still available?"},
-                                        HTTP_X_REQUESTED_WITH="XMLHttpRequest", HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Edg/120").json()
-        self.assertEqual(Inquiry.objects.get(pk=twin["conversation"]).name, f"Visitor {twin['conversation']} · Windows computer")
+                         ("Eric Mugabo", "", "", self.agent, "Android phone · Chrome"))
         self.assertTrue(Notification.objects.filter(user=self.agent, title="New property inquiry").exists())
         # the agent answers in the dashboard; the reply shows in the box (polling)
         agent = self.client_class()
@@ -1191,7 +1190,7 @@ class TheoPropertyTests(TestCase):
         poll = self.client.get(reverse("inquiries:chat_poll", args=[inq.pk]), **ajax).json()
         self.assertEqual([m["text"] for m in poll["messages"]], ["Is this property still available?", "Yes, it is."])
         # the next message continues the same conversation; the page shows it when reopened
-        data = self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()
+        data = self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()  # no name again
         self.assertEqual(data["conversation"], inq.pk)
         self.assertEqual(len(data["messages"]), 3)
         self.assertContains(self.client.get(self.prop.get_absolute_url()), "Can we schedule a time to view it?")
@@ -1206,9 +1205,9 @@ class TheoPropertyTests(TestCase):
         in that phone's own conversation, not the client's). The box lists the clients to answer in the dashboard."""
         send = reverse("inquiries:chat_send", args=[self.prop.slug])
         ajax = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
-        mine = Inquiry.objects.get(pk=self.client.post(send, {"message": "Can we schedule a time to view it?"}, **ajax).json()["conversation"])
+        mine = Inquiry.objects.get(pk=self.client.post(send, {"name": "Paul", "message": "Can we schedule a time to view it?"}, **ajax).json()["conversation"])
         other = self.client_class()
-        theirs = Inquiry.objects.get(pk=other.post(send, {"message": "Can we schedule a time to view it?"},
+        theirs = Inquiry.objects.get(pk=other.post(send, {"name": "Grace", "message": "Can we schedule a time to view it?"},
                                                    HTTP_X_REQUESTED_WITH="XMLHttpRequest",
                                                    HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Edg/120").json()["conversation"])
         self.client.force_login(self.agent)  # same phone, now signed in as the listing's agent

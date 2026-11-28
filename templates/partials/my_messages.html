@@ -44,6 +44,10 @@ property and read the agent's replies right here; elsewhere it lists this device
     <p class="chat-panel-intro" id="chatIntro" {% if chat_data %}hidden{% endif %}>Ask about this property and get a reply right here.</p>
     <div class="chat-thread" id="chatThread" aria-live="polite"></div>
     <div id="chatStart" {% if chat_data %}hidden{% endif %}>
+      <label for="chatName" class="form-label small fw-semibold mb-1">Your name <span class="text-danger">*</span></label>
+      <input type="text" class="form-control mb-2" id="chatName" maxlength="120" placeholder="Write your name" autocomplete="name"
+             value="{% if user.is_authenticated %}{{ user.get_full_name }}{% endif %}" aria-describedby="chatNameHelp">
+      <div id="chatNameHelp" class="small text-muted mb-2">So the agent knows who is asking. No phone or email needed.</div>
       <div class="chat-chips" role="group" aria-label="Quick questions">
         {% for q in ask_choices %}<button type="button" class="chat-chip">{{ q }}</button>
         {% endfor %}      </div>

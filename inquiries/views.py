@@ -215,12 +215,6 @@ def device_conversation(request, prop):
     return my_inquiries(request).filter(property=prop).exclude(status=Inquiry.Status.CLOSED).first()
 
 
-def visitor_label(inquiry):
-    """'Visitor 21 · Windows computer': a unique, readable name for an anonymous chat."""
-    device = (inquiry.device_info or "").split(" · ")[0]
-    return f"Visitor {inquiry.pk}" + (f" · {device}" if device and device != "Unknown device" else "")
-
-
 def _chat_json(inquiry, as_agent=False):
     """The conversation for the chat box. `as_agent`: seen by the agent (their messages on the right)."""
     agent = inquiry.assigned_agent
@@ -238,8 +232,8 @@ def _chat_json(inquiry, as_agent=False):
 
 @require_POST
 def chat_send(request, slug):
-    """Send from the chat box. The first message starts a conversation (just the message: no name, phone
-    or email needed); later ones continue it. Answers with the whole conversation as JSON, so it shows straight away."""
+    """Send from the chat box. The first message starts a conversation (the client's name + the message;
+    no phone or email needed); later ones continue it. Answers with the whole conversation as JSON, so it shows straight away."""
     prop = get_object_or_404(Property, slug=slug, approval_status=Property.Approval.APPROVED)
     if prop.is_taken:
         return JsonResponse({"ok": False, "error": "This property is no longer available."}, status=400)
@@ -274,16 +268,10 @@ def chat_send(request, slug):
     inquiry.device_key = ensure_key(request)
     inquiry.client_ip = client_ip(request)
     inquiry.device_info = describe(request)
-    if request.user.is_authenticated:  # signed in: their name and email are known already
+    if request.user.is_authenticated:  # signed in: their email is known already
         inquiry.client = request.user
-        inquiry.name = request.user.get_full_name() or request.user.username
         inquiry.email = request.user.email or ""
     inquiry.save()
-    if inquiry.name == ChatStartForm.VISITOR_NAME:
-        # Anonymous chats get their own label ("Visitor 21 · Windows computer"), so the agent can tell two
-        # visitors asking the same question apart and answers the right one.
-        inquiry.name = visitor_label(inquiry)
-        Inquiry.objects.filter(pk=inquiry.pk).update(name=inquiry.name)
     deliver_to_agent(request, inquiry, "New property inquiry",
                      f"{inquiry.name} ({inquiry.phone or inquiry.email or 'website chat'}) asked about "
                      f"{prop.reference} - {prop.title}: \"{inquiry.message[:120]}\"", client_text=inquiry.message)
